@@ -52,9 +52,11 @@ def test_trace_carries_business_io_not_transport_details(client, spans, flush):
     client.post(ECHO_PATH, json={"message": "contract clause 4.2"})
     flush()
 
+    # The root span carries the trace's I/O in Langfuse v4, so the handler's
+    # published meaning must land there — not the method/path the middleware saw.
     root = spans.by_name(f"POST {ECHO_PATH}")
-    assert root.json_attr(Attr.TRACE_INPUT) == {"message": "contract clause 4.2"}
-    assert root.json_attr(Attr.TRACE_OUTPUT) == {"echoed": "CONTRACT CLAUSE 4.2"}
+    assert root.json_attr(Attr.OBSERVATION_INPUT) == {"message": "contract clause 4.2"}
+    assert root.json_attr(Attr.OBSERVATION_OUTPUT) == {"echoed": "CONTRACT CLAUSE 4.2"}
 
 
 def test_environment_and_release_are_tagged(client, spans, flush):

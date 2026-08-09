@@ -90,8 +90,19 @@ def _make_handler(collector: SpanCollector) -> type[BaseHTTPRequestHandler]:
         def do_GET(self) -> None:
             # `Langfuse.auth_check()` calls this at startup.
             if self.path.rstrip("/").endswith(PROJECTS_PATH.rstrip("/")):
+                # Must satisfy the SDK's Project model or auth_check raises a
+                # validation error rather than returning False.
                 body = json.dumps(
-                    {"data": [{"id": "test-project", "name": "test-project"}]}
+                    {
+                        "data": [
+                            {
+                                "id": "test-project",
+                                "name": "test-project",
+                                "organization": {"id": "test-org", "name": "test-org"},
+                                "metadata": {},
+                            }
+                        ]
+                    }
                 ).encode()
                 self._respond(200, body, "application/json")
             else:

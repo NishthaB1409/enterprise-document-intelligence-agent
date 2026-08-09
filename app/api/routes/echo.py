@@ -13,9 +13,11 @@ The span shape it produces is the same shape the real pipeline will use:
 Delete this endpoint once real endpoints cover the same ground.
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from langfuse import get_client, observe
 from pydantic import BaseModel, Field
+
+from app.observability.trace_io import publish_trace_io
 
 router = APIRouter(tags=["diagnostics"])
 
@@ -42,13 +44,14 @@ def _handle(message: str) -> str:
 
 
 @router.post("/echo", response_model=EchoResponse)
-async def echo(payload: EchoRequest) -> EchoResponse:
+async def echo(payload: EchoRequest, request: Request) -> EchoResponse:
     langfuse = get_client()
 
     echoed = _handle(payload.message)
 
-    # Trace-level I/O is what shows up in the Langfuse trace list, so it should be
-    # the request's meaning rather than its transport details.
-    langfuse.set_current_trace_io(input={"message": payload.message}, output={"echoed": echoed})
+    # What shows up in the Langfuse trace list should be the request's meaning,
+    # not its transport details. This writes to the root span, which carries the
+    # trace's I/O in Langfuse v4 (`set_current_trace_io` is deprecated there).
+    publish_trace_io(request, input={"message": payload.message}, output={"echoed": echoed})
 
     return EchoResponse(echoed=echoed, trace_id=langfuse.get_current_trace_id())

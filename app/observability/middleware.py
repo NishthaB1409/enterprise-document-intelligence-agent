@@ -13,6 +13,8 @@ from langfuse import get_client, propagate_attributes
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.config import Settings
+from app.observability.route_template import resolve_route_template
+from app.observability.trace_io import attach_root_span, trace_io_published
 
 logger = logging.getLogger(__name__)
 
@@ -42,34 +44,47 @@ class TracingMiddleware(BaseHTTPMiddleware):
             user_id=request.headers.get(USER_HEADER),
             session_id=request.headers.get(SESSION_HEADER),
         ):
-            # Named with the raw path for now; renamed to the route template below
-            # once routing has resolved, to keep trace names low-cardinality.
+            # Named with the concrete path for now; renamed to the route template
+            # below, once routing has resolved it.
             with langfuse.start_as_current_observation(
                 name=f"{request.method} {request.url.path}",
                 as_type="span",
-                # Deliberately *not* the request body: this service ingests PDFs and
-                # contracts, and shipping those to a trace backend is both expensive
-                # and a data-governance problem. Handlers attach the inputs that matter.
-                input={
-                    "method": request.method,
-                    "path": request.url.path,
-                    "query": dict(request.query_params),
-                },
             ) as span:
+                # Lets a handler publish the request's meaning as the trace I/O.
+                attach_root_span(request, span)
                 trace_id = langfuse.get_current_trace_id()
+
                 try:
                     response = await call_next(request)
                 except Exception as exc:
                     span.update(level="ERROR", status_message=repr(exc))
                     raise
 
-                # Available only after routing; "/echo/{message}" rather than
-                # "/echo/hello-world", so traces aggregate per endpoint.
-                route = request.scope.get("route")
-                if route is not None and getattr(route, "path", None):
-                    span.update(name=f"{request.method} {route.path}")
+                template = resolve_route_template(request)
+                if template:
+                    span.update(name=f"{request.method} {template}")
 
-                span.update(output={"status_code": response.status_code})
+                span.update(
+                    metadata={
+                        "http.method": request.method,
+                        "http.path": request.url.path,
+                        "http.route": template,
+                        "http.status_code": response.status_code,
+                    }
+                )
+
+                # Only describe the request in transport terms if the handler
+                # didn't say what it actually meant.
+                if not trace_io_published(request):
+                    span.update(
+                        input={
+                            "method": request.method,
+                            "path": request.url.path,
+                            "query": dict(request.query_params),
+                        },
+                        output={"status_code": response.status_code},
+                    )
+
                 if response.status_code >= 500:
                     span.update(level="ERROR", status_message=f"HTTP {response.status_code}")
                 elif response.status_code >= 400:
