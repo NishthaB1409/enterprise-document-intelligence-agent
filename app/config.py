@@ -22,6 +22,26 @@ class Settings(BaseSettings):
     langfuse_secret_key: str | None = None
     langfuse_host: str = "https://cloud.langfuse.com"
 
+    qdrant_url: str = "http://localhost:6333"
+    qdrant_api_key: str | None = None
+    qdrant_collection: str = "documents"
+
+    # Local ONNX embeddings (384-dim). Chosen over an API embedder so ingestion
+    # needs no second vendor key and re-indexing the corpus costs nothing.
+    embedding_model: str = "BAAI/bge-small-en-v1.5"
+
+    # Measured in whitespace words, not BPE tokens: the splitter's default
+    # tokenizer downloads its vocabulary on first use, and ingestion must not
+    # depend on a network round-trip. 350 words is ~450-470 BPE tokens, which
+    # stays inside the 512-token window bge-small truncates at, while still
+    # holding a whole contract clause. The overlap keeps a clause that straddles
+    # a boundary from being cut in half.
+    chunk_size_words: int = 350
+    chunk_overlap_words: int = 50
+
+    # Bounds the memory a single upload can claim, since parsing loads the file.
+    max_upload_bytes: int = 25 * 1024 * 1024
+
     # Paths that should never open a trace. Liveness probes fire constantly and
     # would otherwise dominate the trace volume.
     untraced_paths: tuple[str, ...] = ("/health", "/health/live", "/health/ready")
