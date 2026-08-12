@@ -10,6 +10,7 @@ import logging
 from collections.abc import Sequence
 
 from qdrant_client import QdrantClient, models
+from qdrant_client.http.exceptions import UnexpectedResponse
 
 from app.ingest.chunking import Chunk
 from app.vectorstore.store import ScoredChunk
@@ -99,12 +100,23 @@ class QdrantVectorStore:
         )
 
     def search(self, vector: Sequence[float], top_k: int) -> list[ScoredChunk]:
-        response = self._client.query_points(
-            collection_name=self._collection,
-            query=list(vector),
-            limit=top_k,
-            with_payload=True,
-        )
+        try:
+            response = self._client.query_points(
+                collection_name=self._collection,
+                query=list(vector),
+                limit=top_k,
+                with_payload=True,
+            )
+        except UnexpectedResponse as exc:
+            if exc.status_code != 404:
+                raise
+            # Querying before anything has been ingested. An empty corpus is a
+            # legitimate state, not a server fault — and checking existence on
+            # every query to avoid this would cost a round trip forever to
+            # handle a condition that stops occurring after the first upload.
+            logger.info("Collection %r does not exist yet; returning no hits", self._collection)
+            return []
+
         return [_to_scored_chunk(point) for point in response.points]
 
 
