@@ -16,7 +16,13 @@ import logging
 from collections.abc import Sequence
 from typing import Any, Protocol, runtime_checkable
 
-from anthropic import Anthropic
+from anthropic import (
+    Anthropic,
+    APIConnectionError,
+    APIStatusError,
+    AuthenticationError,
+    RateLimitError,
+)
 from langfuse import observe
 from pydantic import BaseModel, Field, ValidationError
 
@@ -174,16 +180,36 @@ class AnthropicAnswerer:
                 answerable=False,
             )
 
-        response = self._ensure_client().messages.create(
-            model=self._model,
-            max_tokens=self._max_tokens,
-            system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": build_prompt(question, chunks)}],
-            output_config={
-                "effort": self._effort,
-                "format": {"type": "json_schema", "schema": ANSWER_SCHEMA},
-            },
-        )
+        try:
+            response = self._ensure_client().messages.create(
+                model=self._model,
+                max_tokens=self._max_tokens,
+                system=SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": build_prompt(question, chunks)}],
+                output_config={
+                    "effort": self._effort,
+                    "format": {"type": "json_schema", "schema": ANSWER_SCHEMA},
+                },
+            )
+        # Each of these is something an operator can act on, so each says what
+        # to do. Left to propagate they would all become an identical 500.
+        except AuthenticationError as exc:
+            raise GenerationError(
+                "Anthropic rejected the API key; check ANTHROPIC_API_KEY in .env"
+            ) from exc
+        except RateLimitError as exc:
+            raise GenerationError(
+                "Anthropic rate-limited the request, or the account is out of credit"
+            ) from exc
+        except APIConnectionError as exc:
+            raise GenerationError(f"could not reach Anthropic: {exc}") from exc
+        except APIStatusError as exc:
+            if exc.status_code == 404:
+                raise GenerationError(
+                    f"Anthropic does not recognise the model {self._model!r}, or this "
+                    "account cannot access it; check ANSWER_MODEL"
+                ) from exc
+            raise GenerationError(f"Anthropic returned {exc.status_code}: {exc}") from exc
 
         if response.stop_reason == "refusal":
             raise GenerationError("the model declined to answer this question")

@@ -107,8 +107,8 @@ class QdrantVectorStore:
                 limit=top_k,
                 with_payload=True,
             )
-        except UnexpectedResponse as exc:
-            if exc.status_code != 404:
+        except (UnexpectedResponse, ValueError) as exc:
+            if not _is_missing_collection(exc):
                 raise
             # Querying before anything has been ingested. An empty corpus is a
             # legitimate state, not a server fault — and checking existence on
@@ -118,6 +118,18 @@ class QdrantVectorStore:
             return []
 
         return [_to_scored_chunk(point) for point in response.points]
+
+
+def _is_missing_collection(exc: Exception) -> bool:
+    """Querying a collection that was never created.
+
+    The two client modes report it differently — a server returns 404, while
+    the embedded engine raises a plain ValueError — and the ValueError has to
+    be matched on its message, so anything else it might mean still propagates.
+    """
+    if isinstance(exc, UnexpectedResponse):
+        return exc.status_code == 404
+    return "not found" in str(exc).lower()
 
 
 def _to_scored_chunk(point: models.ScoredPoint) -> ScoredChunk:

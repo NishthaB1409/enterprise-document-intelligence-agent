@@ -16,6 +16,7 @@ from qdrant_client import QdrantClient
 
 from app.config import Settings
 from app.generation.answerer import Answerer, AnthropicAnswerer
+from app.generation.openai_answerer import OpenAIAnswerer
 from app.ingest.embedding import Embedder, FastEmbedEmbedder
 from app.retrieval.retriever import DenseRetriever
 from app.vectorstore.qdrant_store import QdrantVectorStore
@@ -35,17 +36,49 @@ def build_services(settings: Settings) -> Services:
         model_name=settings.embedding_model, cache_dir=settings.embedding_cache_dir
     )
     store = QdrantVectorStore(
-        client=QdrantClient(url=settings.qdrant_url, api_key=settings.qdrant_api_key),
-        collection=settings.qdrant_collection,
+        client=build_qdrant_client(settings), collection=settings.qdrant_collection
     )
     return Services(
         embedder=embedder,
         store=store,
         retriever=DenseRetriever(embedder, store, settings.retrieval_top_k),
-        answerer=AnthropicAnswerer(
-            model=settings.answer_model,
-            api_key=settings.anthropic_api_key,
+        answerer=build_answerer(settings),
+    )
+
+
+def build_qdrant_client(settings: Settings) -> QdrantClient:
+    """Embedded if `qdrant_path` is set, otherwise a server at `qdrant_url`.
+
+    Same client class either way, so `QdrantVectorStore` cannot tell the
+    difference and neither can anything above it.
+    """
+    if settings.qdrant_path:
+        return QdrantClient(path=settings.qdrant_path)
+
+    return QdrantClient(
+        url=settings.qdrant_url,
+        api_key=settings.qdrant_api_key,
+        # Left on, this client probes the server for its version during
+        # construction — which would make merely importing this module do
+        # network I/O, and emit a warning on every test run.
+        check_compatibility=False,
+    )
+
+
+def build_answerer(settings: Settings) -> Answerer:
+    """The provider switch. Both implementations take the same prompt and the
+    same output schema, so this is the whole of the difference between them."""
+    if settings.llm_provider == "openai":
+        return OpenAIAnswerer(
+            model=settings.resolved_answer_model,
+            api_key=settings.openai_api_key,
+            base_url=settings.openai_base_url,
             max_tokens=settings.answer_max_tokens,
-            effort=settings.answer_effort,
-        ),
+        )
+
+    return AnthropicAnswerer(
+        model=settings.resolved_answer_model,
+        api_key=settings.anthropic_api_key,
+        max_tokens=settings.answer_max_tokens,
+        effort=settings.answer_effort,
     )

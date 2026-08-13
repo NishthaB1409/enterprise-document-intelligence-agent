@@ -38,7 +38,7 @@ async def _read_capped(upload: UploadFile, limit: int) -> bytes:
         buffer.extend(segment)
         if len(buffer) > limit:
             raise HTTPException(
-                status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                status.HTTP_413_CONTENT_TOO_LARGE,
                 f"the upload exceeds the {limit} byte limit",
             )
     return bytes(buffer)
@@ -72,7 +72,7 @@ async def ingest(
     except UnreadableDocument as exc:
         # The uploader's problem to fix (corrupt, encrypted, or a scan with no
         # text layer), so it gets a 422 and the reason, not a 500.
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
 
     publish_trace_io(
         request,

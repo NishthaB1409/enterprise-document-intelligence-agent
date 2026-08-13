@@ -1,0 +1,46 @@
+# One command to a demoable stack: Qdrant plus the API.
+#
+# Langfuse is deliberately not here. Self-hosting it means Postgres, ClickHouse,
+# Redis, and MinIO alongside this — more moving parts than the phase-1 demo
+# needs. Point LANGFUSE_* at Langfuse Cloud (or your own instance) in .env and
+# tracing works the same; leave them blank and the app runs untraced.
+
+services:
+  qdrant:
+    # Pin this to the version you test against before anyone depends on the
+    # stack being reproducible.
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333" # REST + the web dashboard at http://localhost:6333/dashboard
+      - "6334:6334" # gRPC
+    volumes:
+      - qdrant-storage:/qdrant/storage
+    restart: unless-stopped
+
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      # Optional so `docker compose up` works on a fresh clone before anyone has
+      # copied .env.example. Without ANTHROPIC_API_KEY, /ingest works and /query
+      # returns 503 with a message saying so.
+      - path: .env
+        required: false
+    environment:
+      # Inside the Compose network Qdrant is a hostname, not localhost. Set here
+      # rather than in .env so the same .env works for a locally-run app.
+      QDRANT_URL: http://qdrant:6333
+    volumes:
+      - embedding-cache:/var/cache/fastembed
+    depends_on:
+      # Ordering only — the API tolerates Qdrant being slow to come up (startup
+      # logs a warning, and the first ingest creates the collection), so a
+      # health-gated start would buy nothing.
+      - qdrant
+    restart: unless-stopped
+
+volumes:
+  qdrant-storage:
+  # Holds the embedding model weights, so a restart doesn't re-download ~130MB.
+  embedding-cache:

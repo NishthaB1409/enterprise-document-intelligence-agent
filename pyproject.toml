@@ -22,7 +22,10 @@ dependencies = [
     # `fastembed` extra: embeddings run locally, so ingestion needs no second API
     # key and the test suite makes no network calls.
     "qdrant-client[fastembed]>=1.19.0",
+    # Both answer providers ship by default: they are thin HTTP clients, and
+    # `LLM_PROVIDER` picks between them at startup rather than at install time.
     "anthropic>=0.75.0",
+    "openai>=1.60.0",
 ]
 
 [project.optional-dependencies]

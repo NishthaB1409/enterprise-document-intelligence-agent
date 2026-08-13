@@ -1,0 +1,26 @@
+# Secrets. `.env.example` is the committed template; `.env` is yours and never
+# leaves this machine.
+.env
+.env.*
+!.env.example
+
+# Environments
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Local model weights, if EMBEDDING_CACHE_DIR points inside the repo
+.cache/
