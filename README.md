@@ -70,7 +70,10 @@ The graph is orchestrated with **LangGraph**, which models the flow as a statefu
 
 ## Key features
 
-- **Hybrid retrieval** — dense embeddings + BM25 sparse, fused and reranked.
+- **Hybrid retrieval** — dense embeddings + BM25 sparse, fused by reciprocal rank,
+  with an optional cross-encoder reranker. Both off by default: on the evaluation
+  corpus they measured *worse* than dense alone, and the numbers are in
+  [`eval/README.md`](eval/README.md) rather than assumed.
 - **Agentic control flow** — the agent routes, grades, rewrites, and retries instead of blindly stuffing top-k chunks.
 - **Chunk-level citations** — every claim in an answer maps to a source span.
 - **Contradiction detection** — a critique node cross-checks retrieved chunks for inconsistencies.
@@ -192,9 +195,29 @@ The suite needs no Qdrant, no API key, and no network: `tests/fakes.py` supplies
 
 ## Evaluation
 
-> Planned for phase 5 — the harness below is not wired up yet.
+### Retrieval — shipped
 
-Quality is measured against a golden dataset of question–answer pairs.
+A golden set of 20 questions over a 13-document corpus, scored on hit@k, MRR, and
+nDCG@5. Runs offline and needs no API key.
+
+```bash
+python -m eval.retrieval_eval --json eval/results.json
+```
+
+It exists to answer one question per change: did this actually help? For phase 2
+the answer was **no** — hybrid retrieval and cross-encoder reranking both measured
+*worse* than the dense baseline on this corpus, so both ship off by default. The
+full result, the diagnosis, and the caveats are in
+**[`eval/README.md`](eval/README.md)**.
+
+Relevance is anchored to verbatim gold spans rather than chunk ids, so re-tuning
+the chunker cannot silently invalidate the ground truth;
+`tests/test_eval_corpus.py` enforces that the spans stay unique and reachable.
+
+### Answer quality — phase 5
+
+Not yet wired up. Faithfulness, answer relevancy, and context precision/recall over
+the same golden set, with Ragas for measurement and DeepEval as a CI gate:
 
 | Metric | Target |
 |---|---|
@@ -203,17 +226,8 @@ Quality is measured against a golden dataset of question–answer pairs.
 | Context precision | ≥ 0.80 |
 | Context recall | ≥ 0.80 |
 
-Run the evaluation suite:
-
-```bash
-# Ragas metrics over the golden dataset
-python -m eval.run_ragas
-
-# DeepEval quality gates (used in CI)
-pytest eval/
-```
-
-The CI workflow blocks any pull request that drops a metric below its threshold, so quality regressions are caught before merge. Every eval score is attached to its Langfuse trace for drill-down.
+The intent is that CI blocks a pull request that drops a metric below threshold, and
+that every score is attached to its Langfuse trace for drill-down.
 
 ---
 
@@ -247,7 +261,7 @@ Every layer below the API sits behind a Protocol (`Embedder`, `VectorStore`, `An
 ## Roadmap
 
 - [x] Baseline RAG with citations
-- [ ] Hybrid retrieval + reranker (with measured before/after lift)
+- [x] Hybrid retrieval + reranker (measured: [no lift on this corpus](eval/README.md))
 - [ ] Agentic graph: route → grade → rewrite → generate → critique
 - [ ] Human-in-the-loop gate + contradiction detection
 - [ ] Ragas + DeepEval + Langfuse evaluation harness

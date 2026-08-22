@@ -69,6 +69,42 @@ class Settings(BaseSettings):
     # model on every query, so this trades recall against cost and latency.
     retrieval_top_k: int = 5
 
+    # "hybrid" adds BM25 alongside the dense vectors and fuses the two rankings;
+    # "dense" is embeddings only.
+    #
+    # Defaults to dense because that is what measured best here: on the corpus
+    # in `eval/`, hybrid scored 0.658 MRR against dense's 0.702, at every
+    # candidate depth tried. bge-small already ranks the exact-token questions
+    # first, so BM25 found nothing new while adding noise on paraphrased ones.
+    # That result is corpus-specific and the sample is small — re-run
+    # `python -m eval.retrieval_eval` against your own documents before
+    # trusting it. See `eval/README.md` for the caveats.
+    retrieval_mode: Literal["dense", "hybrid"] = "dense"
+
+    # BM25 term weights. Pulls a tokenizer and stopword list (~KB), not a model.
+    sparse_model: str = "Qdrant/bm25"
+
+    # How deep each arm of a hybrid search looks before the rankings are fused.
+    # Must exceed retrieval_top_k to be worth anything: the results hybrid
+    # exists to surface are the ones ranked well by one arm and poorly by the
+    # other, and those only appear if both arms looked past k.
+    retrieval_candidates: int = 30
+
+    # A cross-encoder reads question and chunk together, so it catches the
+    # near-miss chunk that sits close in vector space while answering a
+    # neighbouring question. Costs one forward pass per candidate, which is why
+    # it runs on the shortlist rather than the corpus.
+    #
+    # Off by default on the same evidence: it cost 0.05 MRR on the exact-token
+    # questions and returned 0.005 on the paraphrased ones — a loss overall, and
+    # ~80MB of model plus a forward pass per candidate to get it. Worth
+    # re-testing on a corpus where dense retrieval is not already near the
+    # ceiling.
+    rerank_enabled: bool = False
+    # ~80MB ONNX. The L-12 variant is slower and slightly better; the BAAI and
+    # jina rerankers are stronger again at 1GB+.
+    reranker_model: str = "Xenova/ms-marco-MiniLM-L-6-v2"
+
     # Measured in whitespace words, not BPE tokens: the splitter's default
     # tokenizer downloads its vocabulary on first use, and ingestion must not
     # depend on a network round-trip. 350 words is ~450-470 BPE tokens, which

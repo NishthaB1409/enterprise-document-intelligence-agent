@@ -18,7 +18,14 @@ from app.config import Settings
 from app.generation.answerer import Answerer, AnthropicAnswerer
 from app.generation.openai_answerer import OpenAIAnswerer
 from app.ingest.embedding import Embedder, FastEmbedEmbedder
-from app.retrieval.retriever import DenseRetriever
+from app.ingest.sparse import FastEmbedSparseEmbedder, SparseEmbedder
+from app.retrieval.reranking import CrossEncoderReranker
+from app.retrieval.retriever import (
+    DenseRetriever,
+    HybridRetriever,
+    RerankingRetriever,
+    Retriever,
+)
 from app.vectorstore.qdrant_store import QdrantVectorStore
 from app.vectorstore.store import VectorStore
 
@@ -27,22 +34,74 @@ from app.vectorstore.store import VectorStore
 class Services:
     embedder: Embedder
     store: VectorStore
-    retriever: DenseRetriever
+    retriever: Retriever
     answerer: Answerer
+    # None in dense-only mode. Ingestion checks it rather than the settings, so
+    # what gets indexed always matches what the retriever can search.
+    sparse_embedder: SparseEmbedder | None = None
 
 
 def build_services(settings: Settings) -> Services:
     embedder = FastEmbedEmbedder(
         model_name=settings.embedding_model, cache_dir=settings.embedding_cache_dir
     )
+    hybrid = settings.retrieval_mode == "hybrid"
     store = QdrantVectorStore(
-        client=build_qdrant_client(settings), collection=settings.qdrant_collection
+        client=build_qdrant_client(settings),
+        collection=settings.qdrant_collection,
+        requires_sparse=hybrid,
     )
+    sparse_embedder = (
+        FastEmbedSparseEmbedder(
+            model_name=settings.sparse_model, cache_dir=settings.embedding_cache_dir
+        )
+        if hybrid
+        else None
+    )
+
     return Services(
         embedder=embedder,
         store=store,
-        retriever=DenseRetriever(embedder, store, settings.retrieval_top_k),
+        sparse_embedder=sparse_embedder,
+        retriever=build_retriever(settings, embedder, sparse_embedder, store),
         answerer=build_answerer(settings),
+    )
+
+
+def build_retriever(
+    settings: Settings,
+    embedder: Embedder,
+    sparse_embedder: SparseEmbedder | None,
+    store: VectorStore,
+) -> Retriever:
+    """Assemble the configured retrieval stack.
+
+    Reranking composes over either base retriever, so the two settings are
+    independent — which they need to be, because on the corpus in `eval/` they
+    do not move the score in the same direction.
+    """
+    base: Retriever = (
+        DenseRetriever(embedder, store, settings.retrieval_top_k)
+        if sparse_embedder is None
+        else HybridRetriever(
+            embedder,
+            sparse_embedder,
+            store,
+            settings.retrieval_top_k,
+            candidates=settings.retrieval_candidates,
+        )
+    )
+
+    if not settings.rerank_enabled:
+        return base
+
+    return RerankingRetriever(
+        base,
+        CrossEncoderReranker(
+            model_name=settings.reranker_model, cache_dir=settings.embedding_cache_dir
+        ),
+        settings.retrieval_top_k,
+        candidates=settings.retrieval_candidates,
     )
 
 

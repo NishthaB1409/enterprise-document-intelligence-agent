@@ -17,6 +17,7 @@ from langfuse import observe
 from app.ingest.chunking import build_splitter, chunk_pages
 from app.ingest.embedding import Embedder
 from app.ingest.parser import parse_pdf
+from app.ingest.sparse import SparseEmbedder
 from app.vectorstore.store import VectorStore
 
 logger = logging.getLogger(__name__)
@@ -50,8 +51,14 @@ def ingest_pdf(
     store: VectorStore,
     chunk_size_words: int,
     chunk_overlap_words: int,
+    sparse_embedder: SparseEmbedder | None = None,
 ) -> IngestResult:
-    """Raises `UnreadableDocument` if the bytes are not a PDF with a text layer."""
+    """Raises `UnreadableDocument` if the bytes are not a PDF with a text layer.
+
+    Omitting `sparse_embedder` indexes for dense search only. The document stays
+    retrievable, but the BM25 half of a hybrid query will never surface it — so
+    it is a deliberate choice for a dense-only deployment, not a shortcut.
+    """
     doc_id = document_id(data)
 
     pages = parse_pdf(data)
@@ -65,8 +72,12 @@ def ingest_pdf(
     # and the same passage gets cited twice under two ids.
     store.delete_document(doc_id)
 
-    vectors = embedder.embed_documents([chunk.text for chunk in chunks])
-    store.upsert(chunks, vectors, source=filename)
+    texts = [chunk.text for chunk in chunks]
+    vectors = embedder.embed_documents(texts)
+    sparse_vectors = (
+        sparse_embedder.embed_documents(texts) if sparse_embedder is not None else None
+    )
+    store.upsert(chunks, vectors, sparse_vectors, source=filename)
 
     logger.info(
         "Ingested %r (doc_id=%s): %d pages, %d chunks", filename, doc_id, len(pages), len(chunks)

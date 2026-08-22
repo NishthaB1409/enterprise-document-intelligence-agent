@@ -12,6 +12,7 @@ from app.api.deps import ServicesDep, SettingsDep
 from app.ingest.parser import UnreadableDocument
 from app.ingest.pipeline import ingest_pdf
 from app.observability.trace_io import publish_trace_io
+from app.vectorstore.store import CollectionSchemaError
 
 logger = logging.getLogger(__name__)
 
@@ -68,11 +69,21 @@ async def ingest(
             store=services.store,
             chunk_size_words=settings.chunk_size_words,
             chunk_overlap_words=settings.chunk_overlap_words,
+            # None in dense-only mode. Taken from the services rather than the
+            # settings so a document is never indexed for a search the running
+            # retriever cannot perform.
+            sparse_embedder=services.sparse_embedder,
         )
     except UnreadableDocument as exc:
         # The uploader's problem to fix (corrupt, encrypted, or a scan with no
         # text layer), so it gets a 422 and the reason, not a 500.
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+    except CollectionSchemaError as exc:
+        # Nothing wrong with the upload — the index on disk predates hybrid
+        # retrieval. The operator has to act, so the remedy travels with the
+        # error instead of being buried in a 500 and a stack trace.
+        logger.error("Cannot ingest into the existing collection: %s", exc)
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
 
     publish_trace_io(
         request,

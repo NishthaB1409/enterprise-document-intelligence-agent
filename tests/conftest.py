@@ -4,9 +4,14 @@ from langfuse import get_client
 
 from app.config import Settings
 from app.main import create_app
-from app.retrieval.retriever import DenseRetriever
+from app.retrieval.retriever import HybridRetriever
 from app.services import Services
-from tests.fakes import InMemoryVectorStore, StubAnswerer, StubEmbedder
+from tests.fakes import (
+    InMemoryVectorStore,
+    StubAnswerer,
+    StubEmbedder,
+    StubSparseEmbedder,
+)
 from tests.fake_langfuse import FakeLangfuseServer
 
 # The Langfuse client is a process-wide singleton, so the server and app are built
@@ -39,17 +44,32 @@ def settings(fake_langfuse: FakeLangfuseServer) -> Settings:
         retrieval_top_k=3,
         chunk_size_words=40,
         chunk_overlap_words=5,
+        # Mirrors the production default, so the end-to-end tests exercise the
+        # retriever that actually ships rather than a simpler stand-in.
+        retrieval_mode="hybrid",
+        retrieval_candidates=10,
+        # The real cross-encoder would download ~80MB. Reranking has its own
+        # tests against a stub; here the point is the rest of the pipeline.
+        rerank_enabled=False,
     )
 
 
 @pytest.fixture(scope="session")
 def services(settings: Settings) -> Services:
     embedder = StubEmbedder()
+    sparse_embedder = StubSparseEmbedder()
     store = InMemoryVectorStore()
     return Services(
         embedder=embedder,
         store=store,
-        retriever=DenseRetriever(embedder, store, settings.retrieval_top_k),
+        sparse_embedder=sparse_embedder,
+        retriever=HybridRetriever(
+            embedder,
+            sparse_embedder,
+            store,
+            settings.retrieval_top_k,
+            candidates=settings.retrieval_candidates,
+        ),
         answerer=StubAnswerer(),
     )
 

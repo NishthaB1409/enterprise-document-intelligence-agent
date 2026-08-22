@@ -29,12 +29,12 @@ def test_indexes_every_page_and_keeps_its_number():
     assert result.chunks == len(store.points)
     assert result.source == "contract.pdf"
 
-    pages = {chunk.page for chunk, _, _ in store.points.values()}
+    pages = {point.chunk.page for point in store.points.values()}
     assert pages == {1, 2}
 
     # The citation has to survive the round trip, not just the parse.
     termination = next(
-        chunk for chunk, _, _ in store.points.values() if "thirty days" in chunk.text
+        point.chunk for point in store.points.values() if "thirty days" in point.chunk.text
     )
     assert termination.page == 2
     assert termination.doc_id == result.doc_id
@@ -92,7 +92,7 @@ def test_reingesting_leaves_other_documents_alone():
     _ingest(build_pdf(CONTRACT), store)
     _ingest(build_pdf(CONTRACT), store)
 
-    surviving = {chunk.doc_id for chunk, _, _ in store.points.values()}
+    surviving = {point.chunk.doc_id for point in store.points.values()}
     assert other.doc_id in surviving
 
 
