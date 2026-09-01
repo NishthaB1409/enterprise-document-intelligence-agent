@@ -24,3 +24,8 @@ htmlcov/
 
 # Local model weights, if EMBEDDING_CACHE_DIR points inside the repo
 .cache/
+
+# Embedded Qdrant's on-disk state, when QDRANT_PATH points inside the repo.
+# It holds an exclusive .lock file and a sqlite database of whatever has been
+# ingested — machine-local, conflict-prone, and potentially customer content.
+data/
