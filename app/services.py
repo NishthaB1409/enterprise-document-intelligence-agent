@@ -15,10 +15,12 @@ from dataclasses import dataclass
 from qdrant_client import QdrantClient
 
 from app.config import Settings
-from app.generation.answerer import Answerer, AnthropicAnswerer
-from app.generation.openai_answerer import OpenAIAnswerer
+from app.generation.answerer import Answerer, LLMAnswerer
+from app.graph.nodes import Critic, Grader, Rewriter, Router
+from app.graph.pipeline import AgentPipeline, QueryPipeline, SimplePipeline
 from app.ingest.embedding import Embedder, FastEmbedEmbedder
 from app.ingest.sparse import FastEmbedSparseEmbedder, SparseEmbedder
+from app.llm import AnthropicLLM, OpenAILLM, StructuredLLM
 from app.retrieval.reranking import CrossEncoderReranker
 from app.retrieval.retriever import (
     DenseRetriever,
@@ -36,6 +38,9 @@ class Services:
     store: VectorStore
     retriever: Retriever
     answerer: Answerer
+    # What `/query` actually calls. Either the single retrieve-then-generate
+    # pass or the agentic graph; the route cannot tell which.
+    pipeline: QueryPipeline
     # None in dense-only mode. Ingestion checks it rather than the settings, so
     # what gets indexed always matches what the retriever can search.
     sparse_embedder: SparseEmbedder | None = None
@@ -59,12 +64,43 @@ def build_services(settings: Settings) -> Services:
         else None
     )
 
+    retriever = build_retriever(settings, embedder, sparse_embedder, store)
+    llm = build_llm(settings)
+    answerer = LLMAnswerer(llm, max_tokens=settings.answer_max_tokens)
+
     return Services(
         embedder=embedder,
         store=store,
         sparse_embedder=sparse_embedder,
-        retriever=build_retriever(settings, embedder, sparse_embedder, store),
-        answerer=build_answerer(settings),
+        retriever=retriever,
+        answerer=answerer,
+        pipeline=build_pipeline(settings, retriever, answerer, llm),
+    )
+
+
+def build_pipeline(
+    settings: Settings, retriever: Retriever, answerer: Answerer, llm: StructuredLLM
+) -> QueryPipeline:
+    """The agentic graph, or the single pass it has to justify itself against.
+
+    Each node is constructed only if it is enabled, and the graph is handed
+    `None` for the rest — so a disabled node is an absent object rather than a
+    branch that runs and returns early.
+    """
+    if not settings.agent_enabled:
+        return SimplePipeline(retriever, answerer)
+
+    effort = settings.agent_effort
+    return AgentPipeline(
+        retriever=retriever,
+        answerer=answerer,
+        router=Router(llm, effort=effort) if settings.agent_route else None,
+        grader=Grader(llm, effort=effort) if settings.agent_grade else None,
+        # The rewriter is only ever reached from a grade that found nothing, so
+        # without grading there is no path to it.
+        rewriter=Rewriter(llm, effort=effort) if settings.agent_grade else None,
+        critic=Critic(llm) if settings.agent_critique else None,
+        max_rewrites=settings.agent_max_rewrites,
     )
 
 
@@ -124,18 +160,22 @@ def build_qdrant_client(settings: Settings) -> QdrantClient:
     )
 
 
-def build_answerer(settings: Settings) -> Answerer:
-    """The provider switch. Both implementations take the same prompt and the
-    same output schema, so this is the whole of the difference between them."""
+def build_llm(settings: Settings) -> StructuredLLM:
+    """The provider switch, and the whole of the difference between vendors.
+
+    Every model call in the service — answering, routing, grading, rewriting,
+    critique — goes through the object this returns, so switching provider is
+    one branch rather than one branch per call site.
+    """
     if settings.llm_provider == "openai":
-        return OpenAIAnswerer(
+        return OpenAILLM(
             model=settings.resolved_answer_model,
             api_key=settings.openai_api_key,
             base_url=settings.openai_base_url,
             max_tokens=settings.answer_max_tokens,
         )
 
-    return AnthropicAnswerer(
+    return AnthropicLLM(
         model=settings.resolved_answer_model,
         api_key=settings.anthropic_api_key,
         max_tokens=settings.answer_max_tokens,

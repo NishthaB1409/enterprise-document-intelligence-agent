@@ -14,8 +14,9 @@ from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
 from app.api.deps import ServicesDep, SettingsDep
-from app.generation.answerer import GenerationError
 from app.generation.citations import ground
+from app.graph.pipeline import describe
+from app.llm import LLMError
 from app.observability.trace_io import publish_trace_io
 
 logger = logging.getLogger(__name__)
@@ -53,6 +54,14 @@ class Claim(BaseModel):
     citations: list[Citation]
 
 
+class Critique(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    supported: bool
+    confidence: float
+    concerns: list[str]
+
+
 class QueryResponse(BaseModel):
     answer: str
     # False means the retrieved documents do not contain the answer — a correct
@@ -61,6 +70,14 @@ class QueryResponse(BaseModel):
     claims: list[Claim]
     citations: list[Citation]
     unsupported_claims: list[str]
+    # Null when the answer was not reviewed — either the agentic graph is off,
+    # or its critic could not be reached. Not the same as reviewed and clean,
+    # which is what phase 4's gate will need to distinguish.
+    critique: Critique | None = None
+    # Which nodes ran, in order. The cheapest way to explain a surprising
+    # answer: a thin response after `grade:0/5` is a retrieval problem, the
+    # same response after `route:direct` is the router declining.
+    steps: list[str] = Field(default_factory=list)
     trace_id: str | None = None
 
 
@@ -79,30 +96,35 @@ async def query(
             f"answer generation is not configured; set {settings.generation_key_variable}",
         )
 
-    # Both are blocking calls (ONNX inference, then an HTTP round trip to the
-    # model), so both go to a worker thread rather than blocking the loop.
-    chunks = await run_in_threadpool(
-        services.retriever.retrieve, payload.question, payload.top_k
-    )
-
+    # The whole pipeline is blocking (ONNX inference, then one or more HTTP
+    # round trips to the model), so it goes to a worker thread rather than
+    # blocking the loop. One call whether it is the single pass or the graph.
     try:
-        generated = await run_in_threadpool(services.answerer.answer, payload.question, chunks)
-    except GenerationError as exc:
+        result = await run_in_threadpool(
+            services.pipeline.run, payload.question, payload.top_k
+        )
+    except LLMError as exc:
         logger.warning("Answer generation failed: %s", exc)
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
 
-    # `chunks` must be the same sequence, in the same order, that the answerer
-    # was given — the model's source numbers are positions in it.
-    grounded = ground(generated, chunks)
+    # `result.chunks` is what the generator actually saw, which is not always
+    # what retrieval returned — the grader may have dropped some. The model's
+    # source numbers are positions in this list, so grounding has to use it.
+    grounded = ground(result.answer, result.chunks)
+
+    if result.dropped:
+        logger.info("Grader dropped %d source(s): %s", len(result.dropped), result.dropped)
 
     publish_trace_io(
         request,
-        input={"question": payload.question, "retrieved": len(chunks)},
+        input={"question": payload.question, "retrieved": len(result.chunks)},
         output={
             "answer": grounded.answer,
             "answerable": grounded.answerable,
             "citations": len(grounded.citations),
             "unsupported_claims": len(grounded.unsupported_claims),
+            "path": describe(result.steps),
+            "confidence": result.critique.confidence if result.critique else None,
         },
     )
 
@@ -112,5 +134,7 @@ async def query(
         claims=[Claim.model_validate(claim) for claim in grounded.claims],
         citations=[Citation.model_validate(citation) for citation in grounded.citations],
         unsupported_claims=grounded.unsupported_claims,
+        critique=Critique.model_validate(result.critique) if result.critique else None,
+        steps=result.steps,
         trace_id=get_client().get_current_trace_id(),
     )

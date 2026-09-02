@@ -8,9 +8,8 @@ it holds the *other* vendor's key.
 import pytest
 
 from app.config import Settings
-from app.generation.answerer import AnthropicAnswerer
-from app.generation.openai_answerer import OpenAIAnswerer
-from app.services import build_answerer
+from app.llm import AnthropicLLM, OpenAILLM
+from app.services import build_llm
 
 
 def _settings(**overrides) -> Settings:
@@ -20,12 +19,11 @@ def _settings(**overrides) -> Settings:
 
 @pytest.mark.parametrize(
     ("provider", "expected"),
-    [("anthropic", AnthropicAnswerer), ("openai", OpenAIAnswerer)],
+    [("anthropic", AnthropicLLM), ("openai", OpenAILLM)],
 )
 def test_the_provider_setting_picks_the_implementation(provider, expected):
-    answerer = build_answerer(_settings(llm_provider=provider))
-
-    assert isinstance(answerer, expected)
+    # One switch for every model call in the service, not one per call site.
+    assert isinstance(build_llm(_settings(llm_provider=provider)), expected)
 
 
 def test_the_model_defaults_to_one_the_chosen_provider_actually_serves():

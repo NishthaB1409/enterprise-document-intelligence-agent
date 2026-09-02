@@ -10,30 +10,30 @@ latter.
 The model never sees chunk ids. It gets 1-based source numbers, which are short,
 hard to hallucinate plausibly, and trivially range-checked; `app.generation.
 citations` maps them back to real chunks and drops anything that doesn't resolve.
+
+There is one implementation for both vendors. The prompt, the schema, and the
+handling of an empty chunk list are the whole of what answering *is*; which
+provider carries the request is `app.llm`'s problem, and keeping that split is
+what stopped phase 3's four new model calls from doubling into eight.
 """
 
 import logging
 from collections.abc import Sequence
 from typing import Any, Protocol, runtime_checkable
 
-from anthropic import (
-    Anthropic,
-    APIConnectionError,
-    APIStatusError,
-    AuthenticationError,
-    RateLimitError,
-)
 from langfuse import observe
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field
 
+from app.llm import LLMError, StructuredLLM
 from app.vectorstore.store import ScoredChunk
 
 logger = logging.getLogger(__name__)
 
-
-class GenerationError(RuntimeError):
-    """The model did not return a usable answer. Callers turn this into a 502:
-    the request was fine, the upstream dependency was not."""
+# The failure mode callers already handle by name. It is `LLMError` under a
+# different name rather than a subclass: generation has no failure that other
+# model calls do not, and two exception types for one condition would mean every
+# handler eventually catching both.
+GenerationError = LLMError
 
 
 class Claim(BaseModel):
@@ -51,10 +51,10 @@ class GeneratedAnswer(BaseModel):
     answerable: bool
 
 
-# Written by hand rather than derived from the Pydantic models: the structured
-# output API requires `additionalProperties: false` and an explicit `required`
-# on every object, which `model_json_schema()` does not emit. The Pydantic
-# models above still validate what comes back.
+# Written by hand rather than derived from the Pydantic model: the structured
+# output APIs require `additionalProperties: false` and an explicit `required`
+# on every object, which `model_json_schema()` does not emit. The model above
+# still validates what comes back.
 ANSWER_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
@@ -127,6 +127,8 @@ When the sources disagree with each other, say so and cite each side. Do not \
 silently pick one.\
 """
 
+NO_EVIDENCE = "No indexed document contains anything relevant to this question."
+
 
 @runtime_checkable
 class Answerer(Protocol):
@@ -147,88 +149,26 @@ def build_prompt(question: str, chunks: Sequence[ScoredChunk]) -> str:
     return f"<sources>\n{sources}\n</sources>\n\nQuestion: {question}"
 
 
-class AnthropicAnswerer:
-    def __init__(
-        self,
-        *,
-        model: str,
-        api_key: str | None = None,
-        max_tokens: int = 8000,
-        effort: str = "medium",
-    ) -> None:
-        self._model = model
-        self._api_key = api_key
-        self._max_tokens = max_tokens
-        self._effort = effort
-        self._client: Anthropic | None = None
+class LLMAnswerer:
+    """Generation over any `StructuredLLM`."""
 
-    def _ensure_client(self) -> Anthropic:
-        # Deferred: constructing the client without a key raises, and the app
-        # must still boot (and serve /health) when generation is unconfigured.
-        if self._client is None:
-            self._client = Anthropic(api_key=self._api_key)
-        return self._client
+    def __init__(self, llm: StructuredLLM, *, max_tokens: int = 8000) -> None:
+        self._llm = llm
+        self._max_tokens = max_tokens
 
     @observe(name="generate-answer", as_type="generation")
     def answer(self, question: str, chunks: Sequence[ScoredChunk]) -> GeneratedAnswer:
         if not chunks:
-            # Nothing retrieved: there is no grounding to reason over, so asking
-            # the model would only invite it to answer from memory.
-            return GeneratedAnswer(
-                answer="No indexed document contains anything relevant to this question.",
-                claims=[],
-                answerable=False,
-            )
+            # Nothing retrieved means no grounding to reason over, so asking the
+            # model would only invite it to answer from memory. Returned rather
+            # than raised: "the corpus does not cover this" is a correct answer.
+            return GeneratedAnswer(answer=NO_EVIDENCE, claims=[], answerable=False)
 
-        try:
-            response = self._ensure_client().messages.create(
-                model=self._model,
-                max_tokens=self._max_tokens,
-                system=SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": build_prompt(question, chunks)}],
-                output_config={
-                    "effort": self._effort,
-                    "format": {"type": "json_schema", "schema": ANSWER_SCHEMA},
-                },
-            )
-        # Each of these is something an operator can act on, so each says what
-        # to do. Left to propagate they would all become an identical 500.
-        except AuthenticationError as exc:
-            raise GenerationError(
-                "Anthropic rejected the API key; check ANTHROPIC_API_KEY in .env"
-            ) from exc
-        except RateLimitError as exc:
-            raise GenerationError(
-                "Anthropic rate-limited the request, or the account is out of credit"
-            ) from exc
-        except APIConnectionError as exc:
-            raise GenerationError(f"could not reach Anthropic: {exc}") from exc
-        except APIStatusError as exc:
-            if exc.status_code == 404:
-                raise GenerationError(
-                    f"Anthropic does not recognise the model {self._model!r}, or this "
-                    "account cannot access it; check ANSWER_MODEL"
-                ) from exc
-            raise GenerationError(f"Anthropic returned {exc.status_code}: {exc}") from exc
-
-        if response.stop_reason == "refusal":
-            raise GenerationError("the model declined to answer this question")
-        if response.stop_reason == "max_tokens":
-            # The JSON is truncated, so there is nothing to salvage. Surfaced
-            # rather than retried: silently doubling the budget hides a prompt
-            # or chunk-size problem that will keep recurring.
-            raise GenerationError(
-                f"the answer exceeded max_tokens ({self._max_tokens}) and was cut off"
-            )
-
-        text = next((block.text for block in response.content if block.type == "text"), None)
-        if text is None:
-            raise GenerationError("the model returned no text content")
-
-        try:
-            return GeneratedAnswer.model_validate_json(text)
-        except ValidationError as exc:
-            # Structured outputs make this close to impossible; if it happens,
-            # the raw payload is the only way to tell what changed upstream.
-            logger.error("Unparseable answer payload: %s", text[:2000])
-            raise GenerationError(f"the model returned malformed JSON: {exc}") from exc
+        return self._llm.complete(
+            system=SYSTEM_PROMPT,
+            prompt=build_prompt(question, chunks),
+            schema=ANSWER_SCHEMA,
+            schema_name="grounded_answer",
+            model=GeneratedAnswer,
+            max_tokens=self._max_tokens,
+        )

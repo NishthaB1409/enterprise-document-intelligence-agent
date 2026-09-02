@@ -4,6 +4,7 @@ from langfuse import get_client
 
 from app.config import Settings
 from app.main import create_app
+from app.graph.pipeline import SimplePipeline
 from app.retrieval.retriever import HybridRetriever
 from app.services import Services
 from tests.fakes import (
@@ -59,18 +60,24 @@ def services(settings: Settings) -> Services:
     embedder = StubEmbedder()
     sparse_embedder = StubSparseEmbedder()
     store = InMemoryVectorStore()
+    retriever = HybridRetriever(
+        embedder,
+        sparse_embedder,
+        store,
+        settings.retrieval_top_k,
+        candidates=settings.retrieval_candidates,
+    )
+    answerer = StubAnswerer()
     return Services(
         embedder=embedder,
         store=store,
         sparse_embedder=sparse_embedder,
-        retriever=HybridRetriever(
-            embedder,
-            sparse_embedder,
-            store,
-            settings.retrieval_top_k,
-            candidates=settings.retrieval_candidates,
-        ),
-        answerer=StubAnswerer(),
+        retriever=retriever,
+        answerer=answerer,
+        # The single pass, matching the shipped default. The graph has its own
+        # tests; wiring it in here would put four stub model calls behind every
+        # unrelated API assertion.
+        pipeline=SimplePipeline(retriever, answerer),
     )
 
 

@@ -74,11 +74,24 @@ The graph is orchestrated with **LangGraph**, which models the flow as a statefu
   with an optional cross-encoder reranker. Both off by default: on the evaluation
   corpus they measured *worse* than dense alone, and the numbers are in
   [`eval/README.md`](eval/README.md) rather than assumed.
-- **Agentic control flow** — the agent routes, grades, rewrites, and retries instead of blindly stuffing top-k chunks.
-- **Chunk-level citations** — every claim in an answer maps to a source span.
-- **Contradiction detection** — a critique node cross-checks retrieved chunks for inconsistencies.
-- **Human-in-the-loop gate** — low-confidence or flagged answers pause for approval via LangGraph `interrupt_before`.
-- **Full evaluation harness** — Ragas metrics on a golden dataset, DeepEval gates in CI, all scores traced in Langfuse.
+- **Chunk-level citations** — every claim maps to a source span, and a claim whose
+  citations don't resolve is reported rather than silently dropped or silently kept.
+- **Agentic control flow** (`AGENT_ENABLED=true`) — a LangGraph state machine that
+  routes off-topic questions away instead of answering them from model memory,
+  drops retrieved chunks that can't support an answer *before* they can be cited,
+  retries once with the question rephrased in the documents' vocabulary, and
+  scores its own answer against the sources it used. Costs 3–5 model calls per
+  question against the single pass's 1, which is why it is opt-in — and why every
+  node can be switched off on its own.
+- **Every node fails open** — routing, grading, and critique are additions to a
+  pipeline that worked without them. If one is unreachable the query still
+  completes: routing failure searches anyway, grading failure keeps every chunk,
+  and a dead critic reports *unreviewed* rather than a clean bill of health.
+- **Human-in-the-loop gate** *(phase 4)* — low-confidence or flagged answers pause
+  for approval via LangGraph `interrupt_before`. The critique node's confidence
+  score is the signal it will key on.
+- **Full evaluation harness** — retrieval is measured today ([`eval/README.md`](eval/README.md));
+  answer quality via Ragas and DeepEval gates is phase 5.
 
 ---
 
@@ -262,7 +275,7 @@ Every layer below the API sits behind a Protocol (`Embedder`, `VectorStore`, `An
 
 - [x] Baseline RAG with citations
 - [x] Hybrid retrieval + reranker (measured: [no lift on this corpus](eval/README.md))
-- [ ] Agentic graph: route → grade → rewrite → generate → critique
+- [x] Agentic graph: route → grade → rewrite → generate → critique (opt-in; benefit not yet measured)
 - [ ] Human-in-the-loop gate + contradiction detection
 - [ ] Ragas + DeepEval + Langfuse evaluation harness
 - [ ] One-command Docker packaging

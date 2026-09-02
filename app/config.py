@@ -114,6 +114,31 @@ class Settings(BaseSettings):
     chunk_size_words: int = 350
     chunk_overlap_words: int = 50
 
+    # --- Agentic graph ------------------------------------------------------
+    # Route -> retrieve -> grade -> (rewrite -> retry) -> generate -> critique,
+    # instead of the single retrieve-then-generate pass. Costs three to five
+    # model calls per question rather than one, so it is opt-in: see
+    # `app/graph/pipeline.py` for what each node buys.
+    agent_enabled: bool = False
+
+    # Individually disableable, because they are not equally worth their cost on
+    # every corpus. Routing earns its keep when users ask off-topic questions;
+    # grading when retrieval returns near-misses; critique when someone acts on
+    # the answer. Each is one extra model call per query.
+    agent_route: bool = True
+    agent_grade: bool = True
+    agent_critique: bool = True
+
+    # How many times a question may be rewritten and re-retrieved when grading
+    # finds nothing relevant. Bounded because a loop that can retry forever
+    # will: each retry is two more model calls, and the second rewrite of a
+    # question is usually further from what was asked, not closer.
+    agent_max_rewrites: int = 1
+
+    # Routing, grading, and rewriting are classification and paraphrase, not
+    # analysis. Anthropic only — OpenAI ignores it.
+    agent_effort: str = "low"
+
     # Bounds the memory a single upload can claim, since parsing loads the file.
     max_upload_bytes: int = 25 * 1024 * 1024
 
