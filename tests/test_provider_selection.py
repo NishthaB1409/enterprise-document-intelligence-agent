@@ -1,14 +1,15 @@
-"""Choosing an answer provider is one setting, and it must be all of one setting.
+"""Generation configuration, and the gate that checks it before a request runs.
 
-The failure this guards against is a half-switch: `LLM_PROVIDER=openai` with a
-Claude model name still attached, or a deployment that looks configured because
-it holds the *other* vendor's key.
+The failure this guards against is a deployment that *looks* configured — the
+app boots, /health is green, /ingest works — and only discovers at query time
+that it has no key. That is a 500 in front of a user rather than a 503 at the
+door, so the check is asserted here rather than left to be noticed in staging.
 """
 
 import pytest
 
 from app.config import Settings
-from app.llm import AnthropicLLM, OpenAILLM
+from app.llm import OpenAILLM
 from app.services import build_llm
 
 
@@ -17,36 +18,43 @@ def _settings(**overrides) -> Settings:
     return Settings(_env_file=None, **overrides)
 
 
-@pytest.mark.parametrize(
-    ("provider", "expected"),
-    [("anthropic", AnthropicLLM), ("openai", OpenAILLM)],
-)
-def test_the_provider_setting_picks_the_implementation(provider, expected):
-    # One switch for every model call in the service, not one per call site.
-    assert isinstance(build_llm(_settings(llm_provider=provider)), expected)
+def test_every_model_call_goes_through_one_client_type():
+    assert isinstance(build_llm(_settings()), OpenAILLM)
 
 
-def test_the_model_defaults_to_one_the_chosen_provider_actually_serves():
-    assert _settings(llm_provider="anthropic").resolved_answer_model == "claude-opus-5"
-    assert _settings(llm_provider="openai").resolved_answer_model == "gpt-4o-mini"
-    # An explicit choice always wins.
-    assert (
-        _settings(llm_provider="openai", answer_model="gpt-4.1").resolved_answer_model
-        == "gpt-4.1"
-    )
+def test_the_answer_model_must_support_strict_structured_outputs():
+    """gpt-4o-mini is the cheapest model that does, and the citation contract
+    depends on it: without strict mode the schema is a hint, and an answer whose
+    claims parse most of the time is an answer that cannot be verified."""
+    assert _settings().answer_model == "gpt-4o-mini"
+    assert _settings(answer_model="gpt-4.1").answer_model == "gpt-4.1"
 
 
-def test_only_the_selected_providers_key_counts_as_configured():
-    # Holding an unused Anthropic key must not make an OpenAI deployment look
-    # ready — /query would then fail at request time instead of at the gate.
-    openai_selected = _settings(llm_provider="openai", anthropic_api_key="sk-ant-unused")
-    assert not openai_selected.generation_configured
-    assert openai_selected.generation_key_variable == "OPENAI_API_KEY"
+def test_the_graph_defaults_to_a_cheaper_model_than_the_answer():
+    """Four extra classification calls per query on the answering model is the
+    easiest way to make the graph cost several times what it should."""
+    settings = _settings(answer_model="gpt-4.1")
 
-    assert _settings(llm_provider="openai", openai_api_key="sk-test").generation_configured
-    assert _settings(llm_provider="anthropic", anthropic_api_key="sk-ant-test").generation_configured
+    assert settings.agent_model == "gpt-4o-mini"
+    # ...and the graph's client is built with it, not with the answering model.
+    assert build_llm(settings, model=settings.agent_model)._model == "gpt-4o-mini"
+    assert build_llm(settings)._model == "gpt-4.1"
 
 
-def test_an_unknown_provider_is_rejected_at_startup():
-    with pytest.raises(ValueError):
-        _settings(llm_provider="gemini")
+def test_a_missing_key_is_caught_at_the_gate_rather_than_mid_request():
+    assert not _settings().generation_configured
+    assert _settings(openai_api_key="sk-test").generation_configured
+
+
+def test_the_gate_names_the_variable_to_set():
+    # Named in the 503 so the fix is obvious without reading the config.
+    assert _settings().generation_key_variable == "OPENAI_API_KEY"
+
+
+def test_ingestion_does_not_require_a_generation_key():
+    """Indexing documents needs no vendor key at all — embeddings are local — so
+    an unconfigured deployment must still be able to ingest."""
+    settings = _settings()
+
+    assert not settings.generation_configured
+    assert settings.embedding_model  # local, no key involved

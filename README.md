@@ -57,6 +57,7 @@ The graph is orchestrated with **LangGraph**, which models the flow as a statefu
 |---|---|---|
 | API | FastAPI | Async, typed, standard for Python ML backends |
 | Answer generation | Claude or OpenAI | Swapped by one setting; both held to the same citation schema |
+| Generation | OpenAI | Strict structured outputs, which the citation contract depends on |
 | Embeddings | FastEmbed (local ONNX) | No vendor key, no per-document cost, re-indexing is free |
 | Retrieval / chunking | LlamaIndex | Deepest retrieval + indexing module library |
 | Orchestration | LangGraph | Stateful cyclic graphs, native checkpointing, HITL pauses |
@@ -99,7 +100,7 @@ The graph is orchestrated with **LangGraph**, which models the flow as a statefu
 
 ### Prerequisites
 - Docker and Docker Compose
-- An API key for one answer provider, set in `.env`: [Anthropic](https://console.anthropic.com/settings/keys) (default) or [OpenAI](https://platform.openai.com/api-keys). Embeddings run locally, so this is the only vendor key needed — and only for answering; ingestion works without it.
+- An [OpenAI API key](https://platform.openai.com/api-keys) in `.env`. Embeddings, BM25, and reranking all run locally, so this is the only vendor key involved — and only for answering. Ingestion works without it.
 
 ### Run without Docker
 
@@ -115,14 +116,27 @@ uv run uvicorn app.main:app
 
 It holds an exclusive lock on that directory, so one process only — run without `--reload`, and use the Compose setup above for anything with more than one worker.
 
-### Choosing an answer provider
+### Choosing a model
 
 ```ini
-LLM_PROVIDER=openai        # or: anthropic
-OPENAI_API_KEY=sk-proj-... # or: ANTHROPIC_API_KEY=sk-ant-...
+ANSWER_MODEL=gpt-4o-mini   # writes the cited answer
+AGENT_MODEL=gpt-4o-mini    # the graph's classification steps, when enabled
 ```
 
-Only generation changes. Embeddings are local either way, so switching providers re-indexes nothing and costs nothing. Both implementations sit behind the same `Answerer` protocol and share one prompt and one JSON schema, so the citation contract is identical whichever you pick — an OpenAI model just has to support strict structured outputs (`gpt-4o-mini` or newer). `ANSWER_MODEL` defaults to `claude-opus-5` or `gpt-4o-mini` to match the provider.
+The answering model must support **strict structured outputs** (`gpt-4o-mini` or
+newer). That is not a preference: the citation contract depends on
+schema-constrained JSON, and without strict mode the schema is a hint — an answer
+whose claims parse most of the time cannot be verified, which is the same as not
+being verifiable at all.
+
+`AGENT_MODEL` is separate so the agentic graph's four extra calls — routing,
+grading, rewriting, critique — can run on something cheaper than the model that
+writes the answer. They are yes/no judgements and paraphrase; running them on the
+answering model is the easiest way to make the graph cost several times what it
+should for no measurable gain.
+
+Only generation touches a vendor at all. Embeddings run locally, so changing
+either model re-indexes nothing and costs nothing.
 
 ### Run
 

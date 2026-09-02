@@ -50,9 +50,9 @@ class _LLM:
         self._error = error
         self.calls: list[dict] = []
 
-    def complete(self, *, system, prompt, schema, schema_name, model, max_tokens=None, effort=None):
+    def complete(self, *, system, prompt, schema, schema_name, model, max_tokens=None):
         self.calls.append(
-            {"system": system, "prompt": prompt, "effort": effort, "max_tokens": max_tokens}
+            {"system": system, "prompt": prompt, "max_tokens": max_tokens}
         )
         if self._error is not None:
             raise self._error
@@ -79,14 +79,14 @@ class TestRouter:
 
         assert decision.needs_documents is True
 
-    def test_it_asks_cheaply(self):
-        """Classification at answer-grade effort is the easiest way to make an
-        agentic graph cost several times what it should."""
+    def test_it_asks_for_a_bounded_answer(self):
+        """A route decision is a boolean and a sentence. A generous ceiling
+        would not make it better, and the graph pays this on every query."""
         llm = _LLM({"needs_documents": True, "reason": "about documents"})
 
-        Router(llm, effort="low").route("q")
+        Router(llm).route("q")
 
-        assert llm.calls[0]["effort"] == "low"
+        assert llm.calls[0]["max_tokens"] == 2000
 
 
 class TestGrader:

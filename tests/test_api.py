@@ -160,12 +160,12 @@ def test_querying_an_empty_corpus_says_so_without_calling_the_model(
 def test_query_without_a_model_key_is_unavailable_not_broken(
     client: TestClient, override_settings
 ):
-    override_settings(anthropic_api_key=None)
+    override_settings(openai_api_key=None)
 
     response = client.post("/api/v1/query", json={"question": "anything"})
 
     assert response.status_code == 503
-    assert "ANTHROPIC_API_KEY" in response.json()["detail"]
+    assert "OPENAI_API_KEY" in response.json()["detail"]
 
 
 def test_a_failing_model_is_reported_as_an_upstream_failure(

@@ -1,7 +1,7 @@
 """Application settings, loaded from the environment (and `.env` in development)."""
 
 from functools import lru_cache
-from typing import Literal
+from typing import ClassVar, Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -42,27 +42,19 @@ class Settings(BaseSettings):
     # is a temp directory — fine locally, a re-download per restart in a container.
     embedding_cache_dir: str | None = None
 
-    # Which vendor writes the answer. Only generation is affected — embeddings
-    # are local either way, so switching costs nothing and re-indexes nothing.
-    llm_provider: Literal["anthropic", "openai"] = "anthropic"
-
-    anthropic_api_key: str | None = None
+    # Generation is the only thing that needs a vendor key: embeddings, BM25,
+    # and reranking all run locally.
     openai_api_key: str | None = None
     # For Azure OpenAI, a proxy, or any OpenAI-compatible gateway. Unset uses
     # api.openai.com.
     openai_base_url: str | None = None
 
-    # Unset resolves to the provider's default (see `resolved_answer_model`),
-    # so switching providers doesn't strand a model name that belongs to the
-    # other one.
-    answer_model: str | None = None
-    # Anthropic only: low | medium | high | xhigh | max. Reading a handful of
-    # retrieved chunks and citing them is not a reasoning-heavy task; medium
-    # keeps /query interactive. Raise it if answers start missing cross-chunk
-    # implications.
-    answer_effort: str = "medium"
-    # Thinking or reasoning tokens count against this too, so a tight budget
-    # truncates the JSON rather than shortening the prose.
+    # The model that writes the cited answer. It must support strict structured
+    # outputs (gpt-4o-mini or newer) — the citation contract depends on
+    # schema-constrained JSON, not on parsing prose out of a paragraph.
+    answer_model: str = "gpt-4o-mini"
+    # Reasoning tokens count against this too, so a tight budget truncates the
+    # JSON rather than shortening the prose.
     answer_max_tokens: int = 8000
 
     # How many chunks an answer may draw on. Every one of them is sent to the
@@ -135,9 +127,12 @@ class Settings(BaseSettings):
     # question is usually further from what was asked, not closer.
     agent_max_rewrites: int = 1
 
-    # Routing, grading, and rewriting are classification and paraphrase, not
-    # analysis. Anthropic only — OpenAI ignores it.
-    agent_effort: str = "low"
+    # The model the graph's classification steps use. Routing, grading, and
+    # rewriting are yes/no judgements and paraphrase, not analysis — running
+    # them on the answering model is the easiest way to make the graph cost
+    # several times what it should for no measurable gain. Point this at the
+    # same model as ANSWER_MODEL if you would rather not run two.
+    agent_model: str = "gpt-4o-mini"
 
     # Bounds the memory a single upload can claim, since parsing loads the file.
     max_upload_bytes: int = 25 * 1024 * 1024
@@ -153,28 +148,11 @@ class Settings(BaseSettings):
     @property
     def generation_configured(self) -> bool:
         """Ingestion needs no LLM key; answering does. Checked up front so
-        `/query` fails with a clear 503 instead of an SDK error mid-request.
+        `/query` fails with a clear 503 instead of an SDK error mid-request."""
+        return bool(self.openai_api_key)
 
-        Only the *selected* provider's key counts — holding an unused key for
-        the other vendor must not make an unconfigured deployment look healthy.
-        """
-        if self.llm_provider == "openai":
-            return bool(self.openai_api_key)
-        return bool(self.anthropic_api_key)
-
-    @property
-    def generation_key_variable(self) -> str:
-        """Named in the 503 so the fix is obvious without reading the config."""
-        return "OPENAI_API_KEY" if self.llm_provider == "openai" else "ANTHROPIC_API_KEY"
-
-    @property
-    def resolved_answer_model(self) -> str:
-        if self.answer_model:
-            return self.answer_model
-        # gpt-4o-mini is the cheapest OpenAI model that supports strict
-        # structured outputs, which this pipeline depends on. Override
-        # ANSWER_MODEL for a stronger one.
-        return "gpt-4o-mini" if self.llm_provider == "openai" else "claude-opus-5"
+    # Named in the 503 so the fix is obvious without reading the config.
+    generation_key_variable: ClassVar[str] = "OPENAI_API_KEY"
 
 
 @lru_cache

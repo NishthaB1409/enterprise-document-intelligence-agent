@@ -493,6 +493,7 @@ dependencies = [
     { name = "anthropic" },
     { name = "fastapi" },
     { name = "langfuse" },
+    { name = "langgraph" },
     { name = "llama-index-core" },
     { name = "llama-index-readers-file" },
     { name = "openai" },
@@ -503,9 +504,6 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-agent = [
-    { name = "langgraph" },
-]
 eval = [
     { name = "deepeval" },
     { name = "ragas" },
@@ -525,7 +523,7 @@ requires-dist = [
     { name = "deepeval", marker = "extra == 'eval'", specifier = ">=4.1.7" },
     { name = "fastapi", specifier = ">=0.141.1" },
     { name = "langfuse", specifier = ">=3.10,<5" },
-    { name = "langgraph", marker = "extra == 'agent'", specifier = ">=1.2.10" },
+    { name = "langgraph", specifier = ">=1.2.10" },
     { name = "llama-index-core", specifier = ">=0.14.0" },
     { name = "llama-index-readers-file", specifier = ">=0.5.0" },
     { name = "openai", specifier = ">=1.60.0" },
@@ -535,7 +533,7 @@ requires-dist = [
     { name = "ragas", marker = "extra == 'eval'", specifier = ">=0.4.3" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.34.0" },
 ]
-provides-extras = ["agent", "eval"]
+provides-extras = ["eval"]
 
 [package.metadata.requires-dev]
 dev = [

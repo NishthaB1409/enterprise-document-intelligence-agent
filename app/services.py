@@ -2,7 +2,7 @@
 
 Everything below the API layer is written against Protocols (`Embedder`,
 `VectorStore`, `Answerer`). This module is where those become a FastEmbed
-embedder, a Qdrant client, and an Anthropic call — and it is the only module a
+embedder, a Qdrant client, and an OpenAI call — and it is the only module a
 test has to replace to run the whole pipeline in-process.
 
 Construction here is deliberately cheap and offline: the embedder defers its
@@ -20,7 +20,7 @@ from app.graph.nodes import Critic, Grader, Rewriter, Router
 from app.graph.pipeline import AgentPipeline, QueryPipeline, SimplePipeline
 from app.ingest.embedding import Embedder, FastEmbedEmbedder
 from app.ingest.sparse import FastEmbedSparseEmbedder, SparseEmbedder
-from app.llm import AnthropicLLM, OpenAILLM, StructuredLLM
+from app.llm import OpenAILLM, StructuredLLM
 from app.retrieval.reranking import CrossEncoderReranker
 from app.retrieval.retriever import (
     DenseRetriever,
@@ -90,16 +90,19 @@ def build_pipeline(
     if not settings.agent_enabled:
         return SimplePipeline(retriever, answerer)
 
-    effort = settings.agent_effort
+    # The graph's four extra calls are classification and paraphrase, so they
+    # get their own client on a cheaper model. Set AGENT_MODEL to ANSWER_MODEL
+    # if you would rather run one.
+    cheap = build_llm(settings, model=settings.agent_model)
     return AgentPipeline(
         retriever=retriever,
         answerer=answerer,
-        router=Router(llm, effort=effort) if settings.agent_route else None,
-        grader=Grader(llm, effort=effort) if settings.agent_grade else None,
+        router=Router(cheap) if settings.agent_route else None,
+        grader=Grader(cheap) if settings.agent_grade else None,
         # The rewriter is only ever reached from a grade that found nothing, so
         # without grading there is no path to it.
-        rewriter=Rewriter(llm, effort=effort) if settings.agent_grade else None,
-        critic=Critic(llm) if settings.agent_critique else None,
+        rewriter=Rewriter(cheap) if settings.agent_grade else None,
+        critic=Critic(cheap) if settings.agent_critique else None,
         max_rewrites=settings.agent_max_rewrites,
     )
 
@@ -160,24 +163,15 @@ def build_qdrant_client(settings: Settings) -> QdrantClient:
     )
 
 
-def build_llm(settings: Settings) -> StructuredLLM:
-    """The provider switch, and the whole of the difference between vendors.
+def build_llm(settings: Settings, *, model: str | None = None) -> StructuredLLM:
+    """A client for one model. Every model call in the service goes through one.
 
-    Every model call in the service — answering, routing, grading, rewriting,
-    critique — goes through the object this returns, so switching provider is
-    one branch rather than one branch per call site.
+    `model` defaults to the answering model; the graph passes `AGENT_MODEL` to
+    get a cheaper one for its classification steps.
     """
-    if settings.llm_provider == "openai":
-        return OpenAILLM(
-            model=settings.resolved_answer_model,
-            api_key=settings.openai_api_key,
-            base_url=settings.openai_base_url,
-            max_tokens=settings.answer_max_tokens,
-        )
-
-    return AnthropicLLM(
-        model=settings.resolved_answer_model,
-        api_key=settings.anthropic_api_key,
+    return OpenAILLM(
+        model=model or settings.answer_model,
+        api_key=settings.openai_api_key,
+        base_url=settings.openai_base_url,
         max_tokens=settings.answer_max_tokens,
-        effort=settings.answer_effort,
     )

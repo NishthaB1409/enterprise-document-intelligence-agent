@@ -28,9 +28,10 @@ Why these four, specifically:
                into something a reviewer can act on, and it is the signal phase
                4's human-review gate keys on.
 
-All four run at low effort by default. They are classification and rewriting,
-not the reasoning-heavy step — and paying answer-grade effort four extra times
-per query is the easiest way to make an agentic graph cost five times what it
+All four are classification and paraphrase, not the reasoning-heavy step, so
+they are built with their own `StructuredLLM` — `AGENT_MODEL`, cheaper than the
+one that writes the answer. Running four extra calls per query on the answering
+model is the easiest way to make an agentic graph cost several times what it
 should for no measurable gain.
 """
 
@@ -45,9 +46,9 @@ from app.vectorstore.store import ScoredChunk
 
 logger = logging.getLogger(__name__)
 
-# Classification and paraphrase, not analysis. Overridden per node where the
-# task genuinely needs more.
-_CHEAP_EFFORT = "low"
+# These answers are a boolean and a sentence, not an essay. A generous ceiling
+# would not make them better, and a truncated response is an `LLMError` rather
+# than a partial verdict.
 _CHEAP_TOKENS = 2000
 
 
@@ -91,9 +92,8 @@ requests to write something unrelated to the documents.\
 
 
 class Router:
-    def __init__(self, llm: StructuredLLM, *, effort: str = _CHEAP_EFFORT) -> None:
+    def __init__(self, llm: StructuredLLM) -> None:
         self._llm = llm
-        self._effort = effort
 
     @observe(name="route")
     def route(self, question: str) -> Route:
@@ -105,7 +105,6 @@ class Router:
                 schema_name="route",
                 model=Route,
                 max_tokens=_CHEAP_TOKENS,
-                effort=self._effort,
             )
         except LLMError as exc:
             # Routing is an optimisation, not a correctness requirement. If the
@@ -149,9 +148,8 @@ Grade every source you are given, once each, by its number.\
 
 
 class Grader:
-    def __init__(self, llm: StructuredLLM, *, effort: str = _CHEAP_EFFORT) -> None:
+    def __init__(self, llm: StructuredLLM) -> None:
         self._llm = llm
-        self._effort = effort
 
     @observe(name="grade-documents")
     def keep_relevant(
@@ -173,7 +171,6 @@ class Grader:
                 schema_name="grades",
                 model=Grades,
                 max_tokens=_CHEAP_TOKENS,
-                effort=self._effort,
             )
         except LLMError as exc:
             # Keep everything. Grading exists to raise precision; failing it
@@ -231,9 +228,8 @@ Return the rewritten search query alone, with no commentary.\
 
 
 class Rewriter:
-    def __init__(self, llm: StructuredLLM, *, effort: str = _CHEAP_EFFORT) -> None:
+    def __init__(self, llm: StructuredLLM) -> None:
         self._llm = llm
-        self._effort = effort
 
     @observe(name="rewrite-query")
     def rewrite(self, question: str, previous: str) -> str:
@@ -251,7 +247,6 @@ class Rewriter:
                 schema_name="rewritten_query",
                 model=RewrittenQuery,
                 max_tokens=_CHEAP_TOKENS,
-                effort=self._effort,
             )
         except LLMError as exc:
             logger.warning("Rewriting failed, retrying with the original question: %s", exc)
@@ -307,11 +302,8 @@ tangential source does not. List concerns specifically enough to be checked.\
 
 
 class Critic:
-    def __init__(
-        self, llm: StructuredLLM, *, effort: str = "medium", max_tokens: int = 4000
-    ) -> None:
+    def __init__(self, llm: StructuredLLM, *, max_tokens: int = 4000) -> None:
         self._llm = llm
-        self._effort = effort
         self._max_tokens = max_tokens
 
     @observe(name="critique")
@@ -340,7 +332,6 @@ class Critic:
                 schema_name="critique",
                 model=Critique,
                 max_tokens=self._max_tokens,
-                effort=self._effort,
             )
         except LLMError as exc:
             logger.warning("Critique failed; the answer is returned unreviewed: %s", exc)
