@@ -56,7 +56,6 @@ The graph is orchestrated with **LangGraph**, which models the flow as a statefu
 | Layer | Choice | Why |
 |---|---|---|
 | API | FastAPI | Async, typed, standard for Python ML backends |
-| Answer generation | Claude or OpenAI | Swapped by one setting; both held to the same citation schema |
 | Generation | OpenAI | Strict structured outputs, which the citation contract depends on |
 | Embeddings | FastEmbed (local ONNX) | No vendor key, no per-document cost, re-indexing is free |
 | Retrieval / chunking | LlamaIndex | Deepest retrieval + indexing module library |
@@ -143,7 +142,7 @@ either model re-indexes nothing and costs nothing.
 ```bash
 git clone <your-repo-url>
 cd enterprise-doc-agent
-cp .env.example .env        # add your ANTHROPIC_API_KEY
+cp .env.example .env        # add your OPENAI_API_KEY
 docker compose up --build
 ```
 

@@ -4,7 +4,7 @@ Every node is stubbed. The graph's job is not to be clever — it is to take the
 right edge, keep the retry budget, and hand the generator the right chunks — and
 those are properties of the wiring, not of any model's judgement. Stubbing the
 nodes is what makes them assertable at all: with a real model the same test
-would be checking whether Claude happened to agree today.
+would be checking whether the model happened to agree today.
 
 `steps` is asserted directly rather than inferred from the output. Two different
 paths can produce the same answer — a question routed away and a question that

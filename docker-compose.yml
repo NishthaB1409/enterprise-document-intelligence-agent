@@ -23,7 +23,7 @@ services:
       - "8000:8000"
     env_file:
       # Optional so `docker compose up` works on a fresh clone before anyone has
-      # copied .env.example. Without ANTHROPIC_API_KEY, /ingest works and /query
+      # copied .env.example. Without OPENAI_API_KEY, /ingest works and /query
       # returns 503 with a message saying so.
       - path: .env
         required: false
