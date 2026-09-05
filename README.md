@@ -241,6 +241,22 @@ Relevance is anchored to verbatim gold spans rather than chunk ids, so re-tuning
 the chunker cannot silently invalidate the ground truth;
 `tests/test_eval_corpus.py` enforces that the spans stay unique and reachable.
 
+### Routing — shipped
+
+Sixteen questions run repeatedly through the router, scoring how often an
+answerable question actually reaches retrieval. Needs an API key, because it
+calls `AGENT_MODEL`.
+
+```bash
+python -m eval.routing_eval --trials 12
+```
+
+This exists because the router is the only node whose failure is silent: a wrong
+refusal ends the graph before retrieval and looks exactly like a right one. Its
+first live run refused a question the document answered, eleven times out of
+twelve. The regression, the fix, and what the numbers do and don't prove are in
+**[`eval/ROUTING.md`](eval/ROUTING.md)**.
+
 ### Answer quality — phase 5
 
 Not yet wired up. Faithfulness, answer relevancy, and context precision/recall over
@@ -289,7 +305,7 @@ Every layer below the API sits behind a Protocol (`Embedder`, `VectorStore`, `An
 
 - [x] Baseline RAG with citations
 - [x] Hybrid retrieval + reranker (measured: [no lift on this corpus](eval/README.md))
-- [x] Agentic graph: route → grade → rewrite → generate → critique (opt-in; benefit not yet measured)
+- [x] Agentic graph: route → grade → rewrite → generate → critique (opt-in; [routing measured](eval/ROUTING.md), end-to-end benefit not yet)
 - [ ] Human-in-the-loop gate + contradiction detection
 - [ ] Ragas + DeepEval + Langfuse evaluation harness
 - [ ] One-command Docker packaging

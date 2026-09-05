@@ -80,14 +80,26 @@ ROUTE_SYSTEM = """\
 You decide whether a question can be answered from an enterprise document \
 library — contracts, policies, agreements, filings, handbooks.
 
-Set needs_documents to true for anything asking about the content, terms, \
-obligations, dates, figures, or wording of documents. When in doubt, say true: \
-searching and finding nothing is a cheap, honest outcome, while answering from \
-memory is a wrong answer with a confident tone.
+You are not judging whether the question mentions a document. It will not — \
+users ask about their situation, not about the filing system. You are judging \
+whether a library of such documents could plausibly contain the answer.
 
-Set it to false only for questions no document library could answer — greetings, \
-questions about you or your capabilities, general knowledge, arithmetic, or \
-requests to write something unrelated to the documents.\
+So set needs_documents to true whenever the subject matter is the kind of thing \
+these documents govern: terms, obligations, entitlements, deadlines, payments, \
+notice, liability, coverage, process. Everyday phrasing is not evidence against \
+it. "How much holiday do I get?" is a leave-entitlement question, "can I take \
+the laptop home?" is an equipment-policy question, and "who pays if the \
+shipment arrives damaged?" is a risk-of-loss question — all true. Rephrasing a \
+question into the document's vocabulary happens later and is not your job.
+
+Set it to false only when no document library could hold the answer, whatever it \
+contained: greetings and small talk, questions about you or your capabilities, \
+general knowledge and trivia, arithmetic, or requests to write something \
+unrelated to the documents.
+
+When in doubt, say true. Searching and finding nothing is a cheap, honest \
+outcome that costs one retrieval; refusing wrongly denies the user an answer the \
+library was holding, and tells them nothing about why.\
 """
 
 
