@@ -146,7 +146,9 @@ cp .env.example .env        # add your OPENAI_API_KEY
 docker compose up --build
 ```
 
-This starts Qdrant and the FastAPI app. The API is at `http://localhost:8000`, interactive docs at `http://localhost:8000/docs`, and the Qdrant dashboard at `http://localhost:6333/dashboard`.
+This starts Qdrant and the FastAPI app. Open `http://localhost:8000` — it redirects to the interactive docs at `/docs`, where you can upload a PDF and ask questions without leaving the browser. The Qdrant dashboard is at `http://localhost:6333/dashboard`.
+
+> **On Windows PowerShell**, `curl` is an alias for `Invoke-WebRequest` and rejects the flags below with *"A parameter cannot be found that matches parameter name 'F'"*. Use `curl.exe` — the real one, in `System32` — or the PowerShell form shown after each example.
 
 Tracing is optional: set `LANGFUSE_*` in `.env` to send traces to Langfuse Cloud or your own instance. Left blank, the app runs identically and discards spans.
 
@@ -155,6 +157,10 @@ Tracing is optional: set `LANGFUSE_*` in `.env` to send traces to Langfuse Cloud
 ```bash
 curl -X POST http://localhost:8000/api/v1/ingest \
   -F "file=@path/to/document.pdf"
+```
+
+```powershell
+curl.exe -F "file=@path/to/document.pdf" http://localhost:8000/api/v1/ingest
 ```
 
 ```json
@@ -169,6 +175,12 @@ The `doc_id` is the SHA-256 of the file's contents, so re-uploading the same doc
 curl -X POST http://localhost:8000/api/v1/query \
   -H "Content-Type: application/json" \
   -d '{"question": "What is the termination notice period?"}'
+```
+
+```powershell
+$body = @{ question = "What is the termination notice period?" } | ConvertTo-Json
+Invoke-RestMethod -Uri http://localhost:8000/api/v1/query `
+  -Method Post -ContentType "application/json" -Body $body
 ```
 
 ```json

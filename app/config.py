@@ -139,7 +139,7 @@ class Settings(BaseSettings):
 
     # Paths that should never open a trace. Liveness probes fire constantly and
     # would otherwise dominate the trace volume.
-    untraced_paths: tuple[str, ...] = ("/health", "/health/live", "/health/ready")
+    untraced_paths: tuple[str, ...] = ("/", "/health", "/health/live", "/health/ready")
 
     @property
     def langfuse_configured(self) -> bool:

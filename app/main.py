@@ -5,6 +5,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.responses import RedirectResponse
 
 from app.api.routes import echo, health, ingest, query
 from app.config import Settings, get_settings
@@ -51,6 +52,13 @@ def create_app(settings: Settings | None = None, services: Services | None = Non
     app.state.services = services or build_services(settings)
 
     app.add_middleware(TracingMiddleware, settings=settings)
+
+    # The front door. Typing the bare address is the first thing anyone does
+    # with a local service, and FastAPI's default answer is a bare 404 that
+    # looks like the app is down rather than like the URL is incomplete.
+    @app.get("/", include_in_schema=False)
+    def index() -> RedirectResponse:
+        return RedirectResponse(url="/docs")
 
     app.include_router(health.router)
     app.include_router(echo.router, prefix=API_PREFIX)

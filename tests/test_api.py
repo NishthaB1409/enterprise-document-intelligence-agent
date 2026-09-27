@@ -33,6 +33,25 @@ def override_settings(client: TestClient):
     client.app.state.settings = original
 
 
+# --- the front door ---------------------------------------------------------
+
+
+def test_the_root_url_sends_you_to_the_docs(client: TestClient):
+    """A bare 404 on `/` is the same thing a stopped server looks like from a
+    browser, so someone checking whether the service is up gets told it is not.
+    The redirect costs nothing and answers the question actually being asked."""
+    response = client.get("/", follow_redirects=False)
+
+    assert response.status_code in (307, 302)
+    assert response.headers["location"] == "/docs"
+
+
+def test_the_docs_are_actually_there(client: TestClient):
+    """The redirect is only useful if its destination exists — and `/docs`
+    disappears the moment someone sets `openapi_url=None`."""
+    assert client.get("/docs").status_code == 200
+
+
 # --- ingestion --------------------------------------------------------------
 
 
