@@ -222,6 +222,14 @@ class TestCritic:
         (conflict,) = critique.conflicts
         assert conflict.sources == [1, 2]
 
+    def test_the_grader_is_told_not_to_settle_conflicts(self):
+        """The grader runs before the critic. On the first live run it dropped
+        one side of a 30-vs-45-day conflict as "contradicting the other source",
+        and the critic never saw a conflict to flag. See eval/REVIEW.md."""
+        from app.graph.nodes import GRADE_SYSTEM
+
+        assert "never against the other sources" in GRADE_SYSTEM
+
     def test_contradiction_detection_costs_no_extra_call(self):
         """It rides on the critique the graph already pays for."""
         llm = _LLM({"supported": True, "confidence": 0.9, "concerns": [], "conflicts": []})

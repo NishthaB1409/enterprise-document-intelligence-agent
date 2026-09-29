@@ -4,12 +4,38 @@
 python -m eval.review_eval --trials 6
 ```
 
-Needs `OPENAI_API_KEY` and costs money: `trials` critique calls per case on
-`AGENT_MODEL`. At the defaults that is 72 calls of a few hundred tokens each.
+Needs `OPENAI_API_KEY` and costs money: `trials` critique calls per case, plus
+`trials` grading calls per conflict case, on `AGENT_MODEL`. At the defaults that
+is 108 calls of a few hundred tokens each.
 
-**Status: runner shipped, not yet run.** No numbers are claimed below until it
-has been. Record the first run's output here, including anything that comes back
-below 100%.
+**Status: the full runner has not been run yet.** The one measurement so far is
+the grader finding below. Record the first full run's output here, including
+anything that comes back below 100%.
+
+## First finding: grading hid the conflict
+
+The first live test used a two-page PDF. Page 1 said invoices were payable in
+thirty days, and page 2 (a schedule) said forty-five. Nothing was held. The
+response showed `grade:1/3` and `critique:1.00`, meaning the critic had been
+given a single source and correctly found nothing wrong with it.
+
+Running the grader alone on those two pages showed why:
+
+| grader prompt | kept both sides |
+|---|---|
+| original | 3/5 |
+| + "judge each source against the question, never against the other sources" | 12/12 |
+
+The dropped side's stated reason was *"it contradicts the other source regarding
+the specific payment terms"*. The grader's "be strict" instruction had turned it
+into a tie-breaker: it chose one version, and the reader never learned there
+were two. Grading runs before the critic, so no critic prompt could have fixed
+this. That is why the runner now checks grading on every conflict case, in the
+`graded` column.
+
+The caveat is the same as everywhere else here: one case and seventeen samples.
+It shows the failure was real and that the fix addresses it. It does not show the
+grader never does this.
 
 ## What is being tested
 

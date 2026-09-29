@@ -155,6 +155,12 @@ clause, figure, definition, or obligation being asked about. It is not relevant 
 merely because it is the same kind of document, mentions the same parties, or \
 discusses a neighbouring topic.
 
+Judge each source against the question, never against the other sources. A \
+source that states the same term differently from another — a different \
+period, amount, date, or party — is relevant: the disagreement is something the \
+answer must report. Deciding which version is right is not your job, and \
+dropping one is how the reader ends up never knowing there were two.
+
 Be strict. A source kept in error becomes a citation on a claim it does not \
 support. A source dropped in error is recoverable: the question gets rephrased \
 and asked again.

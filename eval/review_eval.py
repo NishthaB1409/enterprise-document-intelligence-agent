@@ -3,8 +3,15 @@
     python -m eval.review_eval [--trials 6]
 
 Needs OPENAI_API_KEY and costs money: `trials` critique calls per case on
-AGENT_MODEL, each a few hundred tokens in and out. At the defaults that is 72
-calls.
+AGENT_MODEL, plus `trials` grading calls per conflict case, each a few hundred
+tokens in and out. At the defaults that is 108 calls.
+
+It checks the grader too, because the grader runs first and the critic only sees
+what it keeps. On the first live run the grader dropped one side of a conflict
+in 2 of 5 trials, giving "it contradicts the other source" as its reason. It had
+settled the disagreement itself, and the critic, left with one source, had
+nothing to flag. A critic that catches every conflict it is shown is worth
+nothing if grading hides the conflict first.
 
 What it measures. Contradiction detection rides on the critique call rather
 than getting its own, so it costs nothing extra per query — but it also shares a
@@ -39,7 +46,7 @@ import statistics
 from dataclasses import dataclass
 
 from app.config import get_settings
-from app.graph.nodes import Critic
+from app.graph.nodes import Critic, Grader
 from app.ingest.chunking import Chunk
 from app.review.contradictions import resolve_conflicts
 from app.services import build_llm
@@ -220,13 +227,15 @@ def main() -> None:
 
     logging.getLogger("langfuse").setLevel(logging.ERROR)
 
-    critic = Critic(build_llm(settings, model=settings.agent_model))
+    llm = build_llm(settings, model=settings.agent_model)
+    critic = Critic(llm)
+    grader = Grader(llm)
     print(
         f"model: {settings.agent_model}  cases: {len(CASES)}  trials each: {args.trials}\n"
-        f"{'':4}{'flagged':>9}  {'expect':8}{'conf (min/median)':>19}  case"
+        f"{'':4}{'flagged':>9}  {'expect':8}{'conf (min/median)':>19}  {'graded':>7}  case"
     )
 
-    detected = alarms = failures = 0
+    detected = alarms = failures = kept_both = 0
     all_confidences: dict[bool, list[float]] = {True: [], False: []}
     for case in CASES:
         chunks = _chunks(case)
@@ -248,7 +257,23 @@ def main() -> None:
             alarms += flagged
         all_confidences[case.conflict].extend(confidences)
 
+        # Conflict cases only: whether both sides survive grading to reach the
+        # critic at all. Clean cases are not graded, because dropping an
+        # unrelated source there is the grader doing its job.
+        graded = "-"
+        survived = args.trials
+        if case.conflict:
+            survived = sum(
+                len(grader.keep_relevant(case.question, chunks)[0]) == len(chunks)
+                for _ in range(args.trials)
+            )
+            kept_both += survived
+            graded = f"{survived}/{args.trials}"
+
         correct = flagged if case.conflict else args.trials - flagged
+        # A conflict case is only clean if the critic caught it *and* grading
+        # let it through: in the pipeline both have to hold.
+        correct = min(correct, survived)
         mark = "    " if correct == args.trials else "  ! "
         conf = (
             f"{min(confidences):.2f}/{statistics.median(confidences):.2f}"
@@ -256,13 +281,15 @@ def main() -> None:
             else "-"
         )
         expect = "conflict" if case.conflict else "none"
-        print(f"{mark}{flagged:>2}/{args.trials:<6}  {expect:8}{conf:>19}  {case.name}")
+        print(f"{mark}{flagged:>2}/{args.trials:<6}  {expect:8}{conf:>19}  {graded:>7}  {case.name}")
 
     positives = sum(c.conflict for c in CASES) * args.trials
     negatives = sum(not c.conflict for c in CASES) * args.trials
     print(
         f"\nconflicts detected: {detected}/{positives} ({detected / positives:.1%})"
         f"\nfalse alarms:       {alarms}/{negatives} ({alarms / negatives:.1%})"
+        f"\ngrader kept both sides of a conflict: {kept_both}/{positives}"
+        f" ({kept_both / positives:.1%})"
     )
     for conflict, label in ((True, "conflict cases"), (False, "clean cases")):
         values = all_confidences[conflict]
