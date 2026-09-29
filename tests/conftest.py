@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
 from langfuse import get_client
@@ -6,6 +8,7 @@ from app.config import Settings
 from app.main import create_app
 from app.graph.pipeline import SimplePipeline
 from app.retrieval.retriever import HybridRetriever
+from app.review.store import ReviewStore
 from app.services import Services
 from tests.fakes import (
     InMemoryVectorStore,
@@ -26,7 +29,7 @@ def fake_langfuse():
 
 
 @pytest.fixture(scope="session")
-def settings(fake_langfuse: FakeLangfuseServer) -> Settings:
+def settings(fake_langfuse: FakeLangfuseServer, tmp_path_factory) -> Settings:
     return Settings(
         # Ignore the developer's own .env. Without this, whichever key happens
         # to be configured locally would leak into the suite, and tests that
@@ -51,6 +54,8 @@ def settings(fake_langfuse: FakeLangfuseServer) -> Settings:
         # The real cross-encoder would download ~80MB. Reranking has its own
         # tests against a stub; here the point is the rest of the pipeline.
         rerank_enabled=False,
+        # Never the repo's own data/ directory, which may hold a real queue.
+        review_db_path=str(tmp_path_factory.mktemp("reviews") / "reviews.sqlite3"),
     )
 
 
@@ -77,6 +82,7 @@ def services(settings: Settings) -> Services:
         # tests; wiring it in here would put four stub model calls behind every
         # unrelated API assertion.
         pipeline=SimplePipeline(retriever, answerer),
+        reviews=ReviewStore(settings.review_db_path),
     )
 
 
@@ -89,12 +95,14 @@ def client(settings: Settings, services: Services):
 
 
 @pytest.fixture(autouse=True)
-def _isolate_services(services: Services):
-    """The app is built once per session, so anything a test indexes or stubs
-    would otherwise leak into the next one."""
+def _isolate_services(services: Services, settings: Settings):
+    """The app is built once per session, so anything a test indexes, stubs, or
+    queues would otherwise leak into the next one."""
     yield
     services.store.clear()
     services.answerer.reset()
+    # The store recreates its table on the next connection.
+    Path(settings.review_db_path).unlink(missing_ok=True)
 
 
 @pytest.fixture

@@ -53,11 +53,11 @@ class GroundedAnswer:
     # retriever ranked them. What a UI renders as the source list.
     citations: list[Citation]
     # Claims that cited nothing resolvable. Non-empty means the answer contains
-    # an assertion no source backs — the signal phase 4's review gate keys on.
+    # an assertion no source backs — one of the signals the review gate keys on.
     unsupported_claims: list[str]
 
 
-def _citation_of(scored: ScoredChunk) -> Citation:
+def citation_of(scored: ScoredChunk) -> Citation:
     return Citation(
         chunk_id=scored.chunk.id,
         doc_id=scored.chunk.doc_id,
@@ -94,7 +94,7 @@ def ground(generated: GeneratedAnswer, chunks: Sequence[ScoredChunk]) -> Grounde
                 continue
             seen.add(number)
 
-            citation = _citation_of(chunks[number - 1])
+            citation = citation_of(chunks[number - 1])
             resolved.append(citation)
             used.setdefault(number, citation)
 

@@ -13,7 +13,7 @@ the answer would pass while the graph took the wrong route.
 """
 
 from app.generation.answerer import GeneratedAnswer
-from app.graph.nodes import Critique, Route
+from app.graph.nodes import Critique, Route, SourceConflict
 from app.graph.pipeline import OFF_TOPIC_ANSWER, AgentPipeline, SimplePipeline
 from app.ingest.chunking import Chunk
 from app.vectorstore.store import ScoredChunk
@@ -332,6 +332,9 @@ class TestCritique:
         result = pipeline.run("What is the notice period?")
 
         assert result.critique is None
+        # ...and flagged as a failure, which is what the review gate holds on.
+        assert result.critique_failed is True
+        assert "critique:unavailable" in result.steps
 
     def test_critique_can_be_disabled(self):
         pipeline = _pipeline(critic=None)
@@ -339,7 +342,37 @@ class TestCritique:
         result = pipeline.run("What is the notice period?")
 
         assert result.critique is None
+        assert result.critique_failed is False
         assert "critique:skipped" in result.steps
+
+    def test_nothing_to_review_is_not_a_failure(self):
+        """Grading found nothing and the answer says so. There is nothing to
+        check it against, and holding it for review would be noise."""
+        critic = _Critic(None)
+        pipeline = _pipeline(
+            retriever=_Retriever({}, default=[IRRELEVANT]),
+            grader=_Grader("never-matches"),
+            critic=critic,
+        )
+
+        result = pipeline.run("What is the notice period?")
+
+        assert critic.calls == []
+        assert result.critique_failed is False
+        assert "critique:no-sources" in result.steps
+
+    def test_conflicts_are_counted_in_the_path(self):
+        critique = Critique(
+            supported=True,
+            confidence=0.8,
+            concerns=[],
+            conflicts=[SourceConflict(sources=[1, 2], description="90 vs 60 days")],
+        )
+
+        result = _pipeline(critic=_Critic(critique)).run("What is the notice period?")
+
+        assert "critique:0.80,conflicts=1" in result.steps
+        assert result.critique.conflicts[0].description == "90 vs 60 days"
 
 
 class TestSimplePipeline:

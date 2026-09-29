@@ -3,6 +3,7 @@
 from functools import lru_cache
 from typing import ClassVar, Literal
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -133,6 +134,25 @@ class Settings(BaseSettings):
     # several times what it should for no measurable gain. Point this at the
     # same model as ANSWER_MODEL if you would rather not run two.
     agent_model: str = "gpt-4o-mini"
+
+    # --- Human review -------------------------------------------------------
+    # Hold answers that trip a review rule (see `app/review/gate.py`) until a
+    # reviewer approves them. The requester gets a review id instead of the
+    # answer. The rules read signals the pipeline already produced, so this
+    # costs no model calls — off only when something downstream does its own
+    # review.
+    review_enabled: bool = True
+
+    # Critic confidence below this holds the answer. Only applies when the
+    # agentic graph runs its critic. A starting point, not a measured value:
+    # `python -m eval.review_eval` prints the confidences the critic actually
+    # gives, which is what to set it from on your own documents.
+    review_min_confidence: float = Field(default=0.7, ge=0.0, le=1.0)
+
+    # Where the review queue lives. A file rather than memory, because a
+    # pending review lost on restart is a promise to a requester silently
+    # broken. Created on first use, not at startup.
+    review_db_path: str = "data/reviews.sqlite3"
 
     # Bounds the memory a single upload can claim, since parsing loads the file.
     max_upload_bytes: int = 25 * 1024 * 1024

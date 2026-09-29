@@ -25,8 +25,12 @@ Why these four, specifically:
     Critic     the generator marks its own homework: it decides which claims it
                made and which sources support them. An independent pass over
                the same evidence is what turns "the model says it cited this"
-               into something a reviewer can act on, and it is the signal phase
-               4's human-review gate keys on.
+               into something a reviewer can act on, and it is one of the
+               signals the human-review gate keys on. It also reports sources
+               that contradict each other — in the same call, because it is
+               already reading every source the answer was written from, and a
+               separate contradiction pass would be a second read of the same
+               tokens.
 
 All four are classification and paraphrase, not the reasoning-heavy step, so
 they are built with their own `StructuredLLM` — `AGENT_MODEL`, cheaper than the
@@ -274,6 +278,15 @@ class Rewriter:
 # Critique
 
 
+class SourceConflict(BaseModel):
+    sources: list[int] = Field(
+        description="The 1-based numbers of the sources that disagree — at least two."
+    )
+    description: str = Field(
+        description="What they disagree about, quoting each source's version."
+    )
+
+
 class Critique(BaseModel):
     supported: bool = Field(
         description="Whether every claim in the answer is backed by the sources."
@@ -284,15 +297,24 @@ class Critique(BaseModel):
     concerns: list[str] = Field(
         description="Specific problems found. Empty when there are none."
     )
+    # Defaulted so a critique built without it means "none found" rather than
+    # failing validation. The schema below still requires it, so the model
+    # always has to commit to an answer.
+    conflicts: list[SourceConflict] = Field(
+        default_factory=list,
+        description="Places where the sources contradict each other. Empty when they agree.",
+    )
 
 
-CRITIQUE_SCHEMA = schema_of(Critique, required=["supported", "confidence", "concerns"])
+CRITIQUE_SCHEMA = schema_of(
+    Critique, required=["supported", "confidence", "concerns", "conflicts"]
+)
 
 CRITIQUE_SYSTEM = """\
 You are reviewing an answer that was generated from a fixed set of sources, on \
 behalf of someone who will act on it.
 
-Check three things:
+Check four things:
 
 Support — is every factual assertion in the answer traceable to the sources? \
 Flag anything asserted that the sources do not say, including detail that sounds \
@@ -305,6 +327,15 @@ date is a defect.
 Scope — does the answer overreach? Presenting a partial answer as complete, or \
 generalising one document's terms to a situation it does not cover, is a defect \
 even when every individual sentence is supported.
+
+Consistency — do any of the sources contradict each other on something the \
+question turns on? Two sources giving different figures, dates, durations, \
+parties, amounts, or governing terms for the same thing is a conflict, whichever \
+one the answer used: the reader needs to know the documents disagree. List each \
+one under conflicts with the numbers of the sources involved. Sources about \
+different things do not conflict — a thirty-day payment term and a ninety-day \
+notice period are two terms, and an exception or a pro-rata rule refines a term \
+rather than contradicting it. Leave conflicts empty when the sources agree.
 
 Set confidence to reflect the answer as a whole. Be willing to use the low end: \
 an answer that says the sources do not cover the question, and is right about \

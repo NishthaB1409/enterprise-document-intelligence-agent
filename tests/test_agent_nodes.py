@@ -207,6 +207,37 @@ class TestCritic:
         assert critique.supported is False
         assert critique.confidence == 0.25
 
+    def test_it_returns_conflicts_between_sources(self):
+        llm = _LLM(
+            {
+                "supported": True,
+                "confidence": 0.8,
+                "concerns": [],
+                "conflicts": [{"sources": [1, 2], "description": "90 vs 60 days"}],
+            }
+        )
+
+        critique = Critic(llm).review("q", "an answer", CHUNKS)
+
+        (conflict,) = critique.conflicts
+        assert conflict.sources == [1, 2]
+
+    def test_contradiction_detection_costs_no_extra_call(self):
+        """It rides on the critique the graph already pays for."""
+        llm = _LLM({"supported": True, "confidence": 0.9, "concerns": [], "conflicts": []})
+
+        Critic(llm).review("q", "an answer", CHUNKS)
+
+        assert len(llm.calls) == 1
+        assert "contradict each other" in llm.calls[0]["system"]
+
+    def test_the_model_must_commit_to_a_conflicts_list(self):
+        """Required in the strict schema, so "none" is an answer the model gave
+        rather than a field it left out."""
+        from app.graph.nodes import CRITIQUE_SCHEMA
+
+        assert "conflicts" in CRITIQUE_SCHEMA["required"]
+
     def test_a_failed_critique_is_none_rather_than_a_pass(self):
         """A default clean verdict would let a broken critic look like a clean
         bill of health, which is precisely what a review gate must not act on."""

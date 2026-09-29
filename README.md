@@ -87,9 +87,18 @@ The graph is orchestrated with **LangGraph**, which models the flow as a statefu
   pipeline that worked without them. If one is unreachable the query still
   completes: routing failure searches anyway, grading failure keeps every chunk,
   and a dead critic reports *unreviewed* rather than a clean bill of health.
-- **Human-in-the-loop gate** *(phase 4)* — low-confidence or flagged answers pause
-  for approval via LangGraph `interrupt_before`. The critique node's confidence
-  score is the signal it will key on.
+- **Human-in-the-loop gate** — an answer with an uncited claim, a failed or
+  doubtful critique, or sources that contradict each other is held, not
+  returned. The requester gets a `202` and a review id. A reviewer sees the full
+  answer, its citations, and why it was held, and approves or rejects it. The
+  rules read signals the pipeline already produced, so the gate adds no model
+  calls and runs on the single-pass pipeline too. The queue is SQLite, so it
+  survives a restart.
+- **Contradiction detection** (`AGENT_ENABLED=true`) — the critic also reports
+  retrieved sources that disagree on the point in question (a contract saying
+  thirty days and its schedule saying forty-five, for example), each resolved to
+  the two spans. It runs inside the critique call that already happens, so it
+  costs no extra call.
 - **Full evaluation harness** — retrieval is measured today ([`eval/README.md`](eval/README.md));
   answer quality via Ragas and DeepEval gates is phase 5.
 
@@ -206,17 +215,76 @@ Invoke-RestMethod -Uri http://localhost:8000/api/v1/query `
   ],
   "citations": ["... every source used, deduplicated, in rank order ..."],
   "unsupported_claims": [],
-  "trace_id": "..."
+  "contradictions": [],
+  "critique": null,
+  "steps": ["retrieve", "generate"],
+  "trace_id": "...",
+  "review": null
 }
 ```
 
 Three fields carry the phase-1 guarantee:
 
 - **`claims`** — the answer decomposed into individual assertions, each with the spans that support it. Prose with `[1]` markers would read the same but could not be checked; a claim with an empty `citations` list can be.
-- **`unsupported_claims`** — assertions whose citations did not resolve to a source we actually retrieved. Out-of-range source numbers are dropped, never clamped to a nearby one. A non-empty list is the signal the phase-4 review gate will key on.
+- **`unsupported_claims`** — assertions whose citations did not resolve to a source we actually retrieved. Out-of-range source numbers are dropped, never clamped to a nearby one. A non-empty list holds the answer for review.
 - **`answerable`** — `false` means the retrieved documents do not contain the answer. Distinguishing that from a short answer is the difference between "go find the right document" and "read this one".
 
 `top_k` may be passed per request to override the configured default.
+
+### Human review
+
+An answer that trips a review rule comes back as `202 Accepted`. The content
+fields are withheld, and a `review` object says why:
+
+```json
+{
+  "answer": "This answer has been held for human review before release. ...",
+  "claims": [], "citations": [], "unsupported_claims": [], "contradictions": [],
+  "review": {
+    "id": "a38b7a55e67344c58f87b8a6ddf3b051",
+    "status": "pending",
+    "reasons": ["claim cites no retrieved source: 'Penalties accrue at 5% monthly.'"]
+  }
+}
+```
+
+What holds an answer: a claim citing no retrieved source; answering "from the
+documents" while citing nothing; a critic that could not be reached; a critic
+verdict of *not supported*, or confidence below `REVIEW_MIN_CONFIDENCE` (0.7);
+and sources that contradict each other. What does not: an honest "no document
+covers this". The reasoning for each rule is in
+[`app/review/gate.py`](app/review/gate.py).
+
+```powershell
+# the queue, oldest first (?status=approved|rejected for decided ones)
+Invoke-RestMethod http://localhost:8000/api/v1/reviews
+
+# one held answer: the full response as it would have been released, and why it was held
+Invoke-RestMethod http://localhost:8000/api/v1/reviews/<id>
+
+# decide it; a decision is final, and a second one gets 409
+$body = @{ decision = "approve"; reviewer = "legal-ops"; note = "checked schedule B" } | ConvertTo-Json
+Invoke-RestMethod -Uri http://localhost:8000/api/v1/reviews/<id>/decision `
+  -Method Post -ContentType "application/json" -Body $body
+```
+
+The requester polls the same `GET /reviews/{id}` for the outcome. Once it is
+approved, `response` is exactly what the reviewer read. The queue lives in
+SQLite at `REVIEW_DB_PATH`, on a volume under Compose.
+
+Two caveats. **There is no authentication** here, as on every other route. The
+`reviewer` name is recorded but not verified, and anyone who can reach
+`/reviews/{id}` can read a held answer. Treat the gate as a workflow step, not an
+access control, until the routes sit behind your identity provider. And
+`REVIEW_ENABLED=false` returns every answer as before. The trace still records
+what the gate *would* have held, which is the cheapest way to choose a threshold
+before switching it on.
+
+*Why not LangGraph `interrupt_before`?* It was the original plan. But the gate
+has to cover the single-pass pipeline, which has no graph. And the signal it
+needs most, `unsupported_claims`, is computed after the graph finishes. Pausing a
+graph with nothing left to run after the pause would have been a queue with
+extra steps.
 
 ---
 
@@ -268,6 +336,21 @@ first live run refused a question the document answered, eleven times out of
 twelve. The regression, the fix, and what the numbers do and don't prove are in
 **[`eval/ROUTING.md`](eval/ROUTING.md)**.
 
+### Contradiction detection — runner shipped, not yet measured
+
+Twelve critique cases: six where two sources state the same term differently,
+and six hard negatives (different terms with figures in the same unit, and
+exceptions that refine a term). Scores detections and false alarms separately,
+and prints the critic's confidence, which is what `REVIEW_MIN_CONFIDENCE` should
+be set from. Needs an API key.
+
+```bash
+python -m eval.review_eval --trials 6
+```
+
+What it measures, and why the negatives matter as much as the positives, is in
+**[`eval/REVIEW.md`](eval/REVIEW.md)**.
+
 ### Answer quality — phase 5
 
 Not yet wired up. Faithfulness, answer relevancy, and context precision/recall over
@@ -299,6 +382,7 @@ enterprise-doc-agent/
 │   ├── retrieval/         # dense retriever (hybrid + reranker land in phase 2)
 │   ├── generation/        # cited-answer generation and citation grounding
 │   ├── graph/             # LangGraph nodes and state definition (phase 3)
+│   ├── review/            # review gate rules, contradiction resolution, the queue
 │   └── observability/     # Langfuse client, tracing middleware
 ├── tests/                 # in-process stand-ins for the embedder, store, and model
 ├── eval/                  # Ragas + DeepEval harness (phase 5)
@@ -317,7 +401,7 @@ Every layer below the API sits behind a Protocol (`Embedder`, `VectorStore`, `An
 - [x] Baseline RAG with citations
 - [x] Hybrid retrieval + reranker (measured: [no lift on this corpus](eval/README.md))
 - [x] Agentic graph: route → grade → rewrite → generate → critique (opt-in; [routing measured](eval/ROUTING.md), end-to-end benefit not yet)
-- [ ] Human-in-the-loop gate + contradiction detection
+- [x] Human-in-the-loop gate + contradiction detection ([runner shipped](eval/REVIEW.md), not yet measured)
 - [ ] Ragas + DeepEval + Langfuse evaluation harness
 - [ ] One-command Docker packaging
 

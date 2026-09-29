@@ -22,6 +22,7 @@ from app.ingest.embedding import Embedder, FastEmbedEmbedder
 from app.ingest.sparse import FastEmbedSparseEmbedder, SparseEmbedder
 from app.llm import OpenAILLM, StructuredLLM
 from app.retrieval.reranking import CrossEncoderReranker
+from app.review.store import ReviewStore
 from app.retrieval.retriever import (
     DenseRetriever,
     HybridRetriever,
@@ -41,6 +42,9 @@ class Services:
     # What `/query` actually calls. Either the single retrieve-then-generate
     # pass or the agentic graph; the route cannot tell which.
     pipeline: QueryPipeline
+    # Held answers awaiting a human. Built for every deployment, whether or not
+    # review is enabled, so turning it off does not strand what is already queued.
+    reviews: ReviewStore
     # None in dense-only mode. Ingestion checks it rather than the settings, so
     # what gets indexed always matches what the retriever can search.
     sparse_embedder: SparseEmbedder | None = None
@@ -75,6 +79,7 @@ def build_services(settings: Settings) -> Services:
         retriever=retriever,
         answerer=answerer,
         pipeline=build_pipeline(settings, retriever, answerer, llm),
+        reviews=ReviewStore(settings.review_db_path),
     )
 
 

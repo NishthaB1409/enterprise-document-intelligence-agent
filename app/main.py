@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 
-from app.api.routes import echo, health, ingest, query
+from app.api.routes import echo, health, ingest, query, reviews
 from app.config import Settings, get_settings
 from app.observability.langfuse_client import init_langfuse, shutdown_langfuse
 from app.observability.middleware import TracingMiddleware
@@ -64,6 +64,7 @@ def create_app(settings: Settings | None = None, services: Services | None = Non
     app.include_router(echo.router, prefix=API_PREFIX)
     app.include_router(ingest.router, prefix=API_PREFIX)
     app.include_router(query.router, prefix=API_PREFIX)
+    app.include_router(reviews.router, prefix=API_PREFIX)
 
     return app
 

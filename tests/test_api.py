@@ -143,11 +143,8 @@ def test_top_k_bounds_what_the_model_is_shown(client: TestClient, answerer: Stub
     assert len(chunks) == 1
 
 
-def test_an_uncited_claim_is_reported_rather_than_hidden(
-    client: TestClient, answerer: StubAnswerer
-):
-    _upload(client, build_pdf(CONTRACT))
-    answerer.respond = lambda question, chunks: GeneratedAnswer.model_validate(
+def _answer_with_an_uncited_claim(question, chunks) -> GeneratedAnswer:
+    return GeneratedAnswer.model_validate(
         {
             "answer": "Notice is thirty days and penalties accrue at 5%.",
             "answerable": True,
@@ -159,10 +156,23 @@ def test_an_uncited_claim_is_reported_rather_than_hidden(
         }
     )
 
-    body = client.post("/api/v1/query", json={"question": "What are the terms?"}).json()
 
+def test_an_uncited_claim_is_reported_rather_than_hidden(
+    client: TestClient, answerer: StubAnswerer, override_settings
+):
+    # Review off, so the grounding report itself is what comes back. With it on
+    # the same answer is held — see the review tests below.
+    override_settings(review_enabled=False)
+    _upload(client, build_pdf(CONTRACT))
+    answerer.respond = _answer_with_an_uncited_claim
+
+    response = client.post("/api/v1/query", json={"question": "What are the terms?"})
+
+    assert response.status_code == 200
+    body = response.json()
     assert body["unsupported_claims"] == ["Penalties accrue at 5% monthly."]
     assert body["claims"][1]["citations"] == []
+    assert body["review"] is None
 
 
 def test_querying_an_empty_corpus_says_so_without_calling_the_model(
@@ -207,3 +217,136 @@ def test_a_failing_model_is_reported_as_an_upstream_failure(
 def test_an_empty_question_is_rejected(client: TestClient):
     assert client.post("/api/v1/query", json={"question": ""}).status_code == 422
     assert client.post("/api/v1/query", json={}).status_code == 422
+
+
+# --- human review -------------------------------------------------------------
+
+
+def _held(client: TestClient, answerer: StubAnswerer, question: str = "What are the terms?"):
+    _upload(client, build_pdf(CONTRACT))
+    answerer.respond = _answer_with_an_uncited_claim
+    return client.post("/api/v1/query", json={"question": question})
+
+
+def test_a_clean_answer_is_released_without_review(client: TestClient):
+    _upload(client, build_pdf(CONTRACT))
+
+    response = client.post("/api/v1/query", json={"question": "termination notice"})
+
+    assert response.status_code == 200
+    assert response.json()["review"] is None
+    assert client.get("/api/v1/reviews").json() == []
+
+
+def test_an_answer_with_an_uncited_claim_is_held(client: TestClient, answerer: StubAnswerer):
+    response = _held(client, answerer)
+
+    assert response.status_code == 202
+    body = response.json()
+    review = body["review"]
+    assert review["status"] == "pending"
+    assert review["reasons"] == [
+        "claim cites no retrieved source: 'Penalties accrue at 5% monthly.'"
+    ]
+    # Nothing the requester could act on before a human has looked.
+    assert review["id"] in body["answer"]
+    assert "penalties" not in body["answer"].lower()
+    assert body["claims"] == body["citations"] == body["unsupported_claims"] == []
+    # The path and trace still come back: they explain the hold, not the answer.
+    assert body["steps"] == ["retrieve", "generate"]
+    assert body["trace_id"]
+
+
+def test_the_reviewer_sees_the_whole_answer_and_why_it_was_held(
+    client: TestClient, answerer: StubAnswerer
+):
+    review_id = _held(client, answerer).json()["review"]["id"]
+
+    review = client.get(f"/api/v1/reviews/{review_id}").json()
+
+    assert review["status"] == "pending"
+    assert review["question"] == "What are the terms?"
+    assert review["reasons"][0].startswith("claim cites no retrieved source")
+    released = review["response"]
+    assert released["answer"] == "Notice is thirty days and penalties accrue at 5%."
+    assert released["unsupported_claims"] == ["Penalties accrue at 5% monthly."]
+    assert released["claims"][0]["citations"][0]["source"] == "contract.pdf"
+    assert released["review"] is None
+
+
+def test_the_queue_lists_pending_reviews_oldest_first(
+    client: TestClient, answerer: StubAnswerer
+):
+    first = _held(client, answerer, "first question").json()["review"]["id"]
+    second = _held(client, answerer, "second question").json()["review"]["id"]
+
+    pending = client.get("/api/v1/reviews").json()
+
+    assert [r["id"] for r in pending] == [first, second]
+
+
+def test_approving_releases_the_stored_answer(client: TestClient, answerer: StubAnswerer):
+    review_id = _held(client, answerer).json()["review"]["id"]
+
+    response = client.post(
+        f"/api/v1/reviews/{review_id}/decision",
+        json={"decision": "approve", "reviewer": "legal-ops", "note": "5% is in schedule B"},
+    )
+
+    assert response.status_code == 200
+    review = response.json()
+    assert review["status"] == "approved"
+    assert review["reviewer"] == "legal-ops"
+    assert review["decided_at"]
+    # The requester polls the same resource and now gets the answer.
+    fetched = client.get(f"/api/v1/reviews/{review_id}").json()
+    assert fetched["status"] == "approved"
+    assert fetched["response"]["answer"].startswith("Notice is thirty days")
+    # Decided reviews leave the pending queue but are still listable.
+    assert client.get("/api/v1/reviews").json() == []
+    assert [r["id"] for r in client.get("/api/v1/reviews?status=approved").json()] == [
+        review_id
+    ]
+
+
+def test_a_decision_is_final(client: TestClient, answerer: StubAnswerer):
+    """Two reviewers must not silently overrule each other."""
+    review_id = _held(client, answerer).json()["review"]["id"]
+    url = f"/api/v1/reviews/{review_id}/decision"
+
+    client.post(url, json={"decision": "reject", "reviewer": "alice"})
+    second = client.post(url, json={"decision": "approve", "reviewer": "bob"})
+
+    assert second.status_code == 409
+    assert "alice" in second.json()["detail"]
+    assert client.get(f"/api/v1/reviews/{review_id}").json()["status"] == "rejected"
+
+
+def test_a_decision_needs_a_reviewer(client: TestClient, answerer: StubAnswerer):
+    review_id = _held(client, answerer).json()["review"]["id"]
+
+    response = client.post(
+        f"/api/v1/reviews/{review_id}/decision", json={"decision": "approve", "reviewer": ""}
+    )
+
+    assert response.status_code == 422
+
+
+def test_an_unknown_review_is_not_found(client: TestClient):
+    assert client.get("/api/v1/reviews/nope").status_code == 404
+    assert (
+        client.post(
+            "/api/v1/reviews/nope/decision", json={"decision": "approve", "reviewer": "x"}
+        ).status_code
+        == 404
+    )
+
+
+def test_an_honest_no_answer_is_not_held(client: TestClient):
+    """Declining for lack of evidence is the correct outcome. Queueing it would
+    teach reviewers that most of the queue needs no attention."""
+    response = client.post("/api/v1/query", json={"question": "What is the notice period?"})
+
+    assert response.status_code == 200
+    assert response.json()["answerable"] is False
+    assert response.json()["review"] is None

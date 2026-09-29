@@ -31,8 +31,12 @@ services:
       # Inside the Compose network Qdrant is a hostname, not localhost. Set here
       # rather than in .env so the same .env works for a locally-run app.
       QDRANT_URL: http://qdrant:6333
+      # On a volume: a pending review lost to a container restart is a
+      # requester told "a human will look at this" and then forgotten.
+      REVIEW_DB_PATH: /srv/data/reviews.sqlite3
     volumes:
       - embedding-cache:/var/cache/fastembed
+      - review-queue:/srv/data
     depends_on:
       # Ordering only — the API tolerates Qdrant being slow to come up (startup
       # logs a warning, and the first ingest creates the collection), so a
@@ -44,3 +48,5 @@ volumes:
   qdrant-storage:
   # Holds the embedding model weights, so a restart doesn't re-download ~130MB.
   embedding-cache:
+  # The human-review queue (SQLite).
+  review-queue:

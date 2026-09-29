@@ -66,8 +66,13 @@ class PipelineResult:
     # returned, which grading may have shortened.
     chunks: list[ScoredChunk]
     # None means the answer was not reviewed, which is not the same as reviewed
-    # and found clean. Phase 4's gate has to be able to tell those apart.
+    # and found clean. The review gate has to be able to tell those apart.
     critique: Critique | None = None
+    # True when a critic was configured and had sources to read, but produced
+    # nothing. Separate from `critique is None` because that is also the value
+    # when critique is switched off, or when there was nothing to review — and
+    # only a failure is a reason to hold an answer back.
+    critique_failed: bool = False
     # The nodes that actually ran, in order. Returned to the caller and attached
     # to the trace, because "why did this answer come back thin" is usually
     # answered by which path it took.
@@ -116,6 +121,7 @@ class AgentState(TypedDict, total=False):
     rewrites: int
     answer: GeneratedAnswer
     critique: Critique | None
+    critique_failed: bool
     # Appended to by every node rather than overwritten, so the value at the end
     # is the whole path.
     steps: Annotated[list[str], operator.add]
@@ -212,10 +218,19 @@ class AgentPipeline:
         if self._critic is None:
             return {"steps": ["critique:skipped"]}
 
-        critique = self._critic.review(
-            state["question"], state["answer"].answer, state.get("chunks", [])
-        )
-        label = "unavailable" if critique is None else f"{critique.confidence:.2f}"
+        chunks = state.get("chunks", [])
+        if not chunks:
+            # Nothing to check the answer against, and the answer is the
+            # generator's "no document covers this". Not a failure to review.
+            return {"steps": ["critique:no-sources"]}
+
+        critique = self._critic.review(state["question"], state["answer"].answer, chunks)
+        if critique is None:
+            return {"critique_failed": True, "steps": ["critique:unavailable"]}
+
+        label = f"{critique.confidence:.2f}"
+        if critique.conflicts:
+            label += f",conflicts={len(critique.conflicts)}"
         return {"critique": critique, "steps": [f"critique:{label}"]}
 
     # -- edges ------------------------------------------------------------
@@ -279,6 +294,7 @@ class AgentPipeline:
             answer=answer,
             chunks=final.get("chunks", []),
             critique=final.get("critique"),
+            critique_failed=final.get("critique_failed", False),
             steps=final.get("steps", []),
             dropped=final.get("dropped", []),
         )
