@@ -128,6 +128,9 @@ TARGETS: dict[str, float] = {
 # default strictness), correctness two (decompose the reference, verify it).
 _JUDGE_CALLS = {"faithfulness": 2, "answer_relevancy": 3, "answer_correctness": 2}
 
+# The committed record eval/ANSWERS.md cites. Written only when `--json` asks for
+# it: a gate run in CI, or a quick check, must not silently replace the run the
+# write-up describes. (The first gate run did exactly that.)
 RESULTS_PATH = Path(__file__).with_name("answer_results.json")
 
 
@@ -501,7 +504,12 @@ def main() -> None:
     parser.add_argument("--concurrency", type=int, default=4, help="parallel pipeline runs and judge calls")
     parser.add_argument("--gate", action="store_true", help="exit 1 if any pipeline misses a threshold")
     parser.add_argument("--yes", action="store_true", help="skip the confirmation before spending")
-    parser.add_argument("--json", type=Path, default=RESULTS_PATH, help=f"default: {RESULTS_PATH.name}")
+    parser.add_argument(
+        "--json",
+        type=Path,
+        default=None,
+        help=f"write per-question results here; the committed record is eval/{RESULTS_PATH.name}",
+    )
     args = parser.parse_args()
 
     os.environ.setdefault("RAGAS_DO_NOT_TRACK", "true")
@@ -576,7 +584,25 @@ def main() -> None:
 
     _print_failures(samples)
 
-    args.json.write_text(
+    if args.json is None:
+        print("\nper-question results not written (pass --json to keep them)")
+    else:
+        _write_results(args.json, settings, judge_model, cases, summaries, costs, samples)
+        print(f"\nwrote {args.json}")
+
+    if args.gate:
+        failed = {n: f for n in summaries if (f := gate_failures(summaries[n]))}
+        if failed:
+            print("\n## Gate: FAILED\n")
+            for name, reasons in failed.items():
+                for reason in reasons:
+                    print(f"  {name}: {reason}")
+            raise SystemExit(1)
+        print("\n## Gate: passed")
+
+
+def _write_results(path: Path, settings, judge_model, cases, summaries, costs, samples) -> None:
+    path.write_text(
         json.dumps(
             {
                 "config": {
@@ -601,17 +627,6 @@ def main() -> None:
         + "\n",
         encoding="utf-8",
     )
-    print(f"\nwrote {args.json}")
-
-    if args.gate:
-        failed = {n: f for n in summaries if (f := gate_failures(summaries[n]))}
-        if failed:
-            print("\n## Gate: FAILED\n")
-            for name, reasons in failed.items():
-                for reason in reasons:
-                    print(f"  {name}: {reason}")
-            raise SystemExit(1)
-        print("\n## Gate: passed")
 
 
 def _print_failures(samples: dict[str, list[Sample]]) -> None:

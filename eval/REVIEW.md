@@ -8,9 +8,52 @@ Needs `OPENAI_API_KEY` and costs money: `trials` critique calls per case, plus
 `trials` grading calls per conflict case, on `AGENT_MODEL`. At the defaults that
 is 108 calls of a few hundred tokens each.
 
-**Status: the full runner has not been run yet.** The one measurement so far is
-the grader finding below. Record the first full run's output here, including
-anything that comes back below 100%.
+**Status: measured.** First full run on 2026-09-30, `gpt-4o-mini`, 6 trials per case:
+
+```
+      flagged  expect    conf (min/median)   graded  case
+     6/6       conflict          0.30/0.40      6/6  payment term
+     6/6       conflict          0.20/0.25      6/6  governing law
+     6/6       conflict          0.20/0.30      6/6  leave entitlement
+     6/6       conflict          0.20/0.20      6/6  commencement date
+     6/6       conflict          0.20/0.30      6/6  insurance level
+  !  0/6       conflict          0.20/0.40      6/6  liability cap
+     0/6       none              0.90/1.00        -  payment vs notice
+     0/6       none              0.80/0.90        -  cap and carve-out
+     0/6       none              0.90/1.00        -  leave pro rata
+     0/6       none              1.00/1.00        -  law and jurisdiction
+     0/6       none              0.90/0.90        -  two insurance types
+     0/6       none              0.90/0.90        -  rate and deadline
+
+conflicts detected: 30/36 (83.3%)
+false alarms:       0/36 (0.0%)
+grader kept both sides of a conflict: 36/36 (100.0%)
+critic confidence on conflict cases: median 0.30, min 0.20
+critic confidence on clean cases: median 0.90, min 0.80
+```
+
+What it shows:
+
+- **No false alarms, including on all six hard negatives.** The critic
+  distinguishes "two different figures" from "two figures for the same term",
+  which the prompt was written to teach. That's the result that matters most for
+  a review queue.
+- **Every case is unanimous.** Five conflicts were caught 6/6, and one was missed
+  6/6. That's a systematic blind spot, not sampling noise.
+- **The miss is still held.** On the liability cap case the critic listed no
+  conflict but gave confidence 0.20–0.40, well under the 0.7 threshold, so the
+  gate holds the answer anyway, for a different stated reason. The case is also
+  the most arguable of the six: its second clause opens *"Notwithstanding anything
+  else…"*, which a reader can take as overriding the first rather than
+  contradicting it. It is left as written rather than softened to make the score
+  100%.
+- **The 0.7 threshold now has evidence behind it.** Conflict cases never scored
+  above 0.40, and clean cases never below 0.80. The threshold sits in a gap 0.40
+  wide. It started as a guess, and on these cases it separates perfectly. That's
+  12 cases, so it's a sanity check rather than a calibration, but a threshold
+  anywhere from 0.45 to 0.75 would have held the same answers.
+- **The grader fix held.** Both sides of every conflict survived grading, 36/36,
+  against 3/5 on the single case measured before the fix.
 
 ## First finding: grading hid the conflict
 

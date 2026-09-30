@@ -33,8 +33,9 @@ the same unit for different terms, and exceptions or pro-rata rules that refine 
 term rather than contradict it. A detector that fires on any two differing
 numbers would pass the first half and fail the second.
 
-It also prints the critic's confidence per case. `REVIEW_MIN_CONFIDENCE` is a
-starting point, not a measured value; these numbers are what to set it from.
+It also prints the critic's confidence per case, which is what
+`REVIEW_MIN_CONFIDENCE` is set from. The first run put every conflict at or
+below 0.40 and every clean case at or above 0.80 (eval/REVIEW.md).
 
 Why it repeats each case: the same reason `routing_eval` does. One sample cannot
 tell a 6/6 case from a 3/6 one, and it is the 3/6 ones that matter.

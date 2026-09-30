@@ -24,9 +24,9 @@ What holds an answer, and why each one:
     critic: unsupported      the independent pass disagreed with the generator
                              about whether its own citations hold up.
 
-    low critic confidence    below `review_min_confidence`. The threshold is a
-                             starting point, not a measured value — see
-                             `eval/REVIEW.md` for what has been measured.
+    low critic confidence    below `review_min_confidence` (0.7). On the eval
+                             cases conflicts never scored above 0.40 and clean
+                             answers never below 0.80 — see `eval/REVIEW.md`.
 
     sources disagree         the documents contradict each other on something
                              the question turns on. The answer may have picked

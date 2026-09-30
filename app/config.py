@@ -144,9 +144,10 @@ class Settings(BaseSettings):
     review_enabled: bool = True
 
     # Critic confidence below this holds the answer. Only applies when the
-    # agentic graph runs its critic. A starting point, not a measured value:
-    # `python -m eval.review_eval` prints the confidences the critic actually
-    # gives, which is what to set it from on your own documents.
+    # agentic graph runs its critic. On the eval cases the critic never scored a
+    # conflict above 0.40 or a clean answer below 0.80 (eval/REVIEW.md), so 0.7
+    # sits in that gap. Re-check with `python -m eval.review_eval` on your own
+    # documents: twelve cases are a sanity check, not a calibration.
     review_min_confidence: float = Field(default=0.7, ge=0.0, le=1.0)
 
     # Where the review queue lives. A file rather than memory, because a

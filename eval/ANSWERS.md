@@ -2,8 +2,8 @@
 
 ```bash
 uv sync --extra eval
-python -m eval.answer_eval                  # both pipelines, ~440 calls on gpt-4o-mini
-python -m eval.answer_eval --pipelines simple --gate   # what CI would run
+python -m eval.answer_eval --json eval/answer_results.json   # both pipelines, ~440 calls; rewrites the record
+python -m eval.answer_eval --pipelines simple --gate          # what CI would run; writes nothing
 ```
 
 The phase-3 graph (route, grade, rewrite, critique) costs about four model calls
@@ -31,33 +31,41 @@ are worth having in some deployments, but they aren't answer quality.
 
 ## Results
 
-Two full runs. Run 1's correctness column used a broken metric (see findings 2
-and 3), and run 1's agent had the router bug (finding 1), so **run 2 is the
-record**. Run 1 is shown for its run-to-run variance.
+Two full runs of both pipelines, plus a third run of the single pass alone (the
+first gate run, on a different machine). Run 1's correctness column used a broken
+metric (see findings 2 and 3), and run 1's agent had the router bug (finding 1).
+So the comparison rests on **run 2**, with runs 1 and 3 there to show
+run-to-run variance.
 
-| | simple, run 1 | simple, run 2 | agent, run 1 | agent, run 2 | floor | target |
-|---|---|---|---|---|---|---|
-| answered (golden) | 1.000 | 1.000 | 0.900 | 0.900 | | |
-| faithfulness | 0.867 | 0.805 | 0.901 | 0.894 | 0.75 | 0.90 |
-| answer relevancy | 0.767 | 0.766 | 0.713 | 0.698 | 0.65 | 0.85 |
-| answer correctness | *broken* | 0.675 | *broken* | 0.725 | 0.60 | |
-| context precision | 0.702 | 0.702 | 0.725 | 0.775 | 0.65 | 0.80 |
-| context recall | 0.850 | 0.850 | 0.750 | 0.850 | 0.75 | 0.80 |
-| chunks shown | 5.00 | 5.00 | 1.50 | 1.65 | | |
-| held for review | 0.000 | 0.000 | 0.077 | 0.154 | | |
-| unanswerable declined | 6/6 | 6/6 | 6/6 | 6/6 | | |
-| unanswerable released | 0 | 0 | 0 | 0 | | |
-| model calls / question | 1.00 | 1.00 | 3.88 | 4.00 | | |
-| tokens / question | 1222 | 1220 | 3030 | 3282 | | |
+| | simple, run 1 | simple, run 2 | simple, run 3 | agent, run 1 | agent, run 2 | floor | target |
+|---|---|---|---|---|---|---|---|
+| answered (golden) | 1.000 | 1.000 | 1.000 | 0.900 | 0.900 | | |
+| faithfulness | 0.867 | 0.805 | 0.868 | 0.901 | 0.894 | 0.75 | 0.90 |
+| answer relevancy | 0.767 | 0.766 | 0.808 | 0.713 | 0.698 | 0.65 | 0.85 |
+| answer correctness | *broken* | 0.675 | 0.750 | *broken* | 0.725 | 0.60 | |
+| context precision | 0.702 | 0.702 | 0.702 | 0.725 | 0.775 | 0.65 | 0.80 |
+| context recall | 0.850 | 0.850 | 0.850 | 0.750 | 0.850 | 0.75 | 0.80 |
+| chunks shown | 5.00 | 5.00 | 5.00 | 1.50 | 1.65 | | |
+| held for review | 0.000 | 0.000 | 0.000 | 0.077 | 0.154 | | |
+| unanswerable declined | 6/6 | 6/6 | 6/6 | 6/6 | 6/6 | | |
+| unanswerable released | 0 | 0 | 0 | 0 | 0 | | |
+| model calls / question | 1.00 | 1.00 | 1.00 | 3.88 | 4.00 | | |
+| tokens / question | 1222 | 1220 | 1221 | 3030 | 3282 | | |
 
-Per-question rows for run 2 are in [`answer_results.json`](answer_results.json).
+Per-question rows for run 2, both pipelines, are in
+[`answer_results.json`](answer_results.json). Run 3 was the first `--gate` run,
+and it overwrote that file in the working copy, because the runner wrote results
+on every run. It now writes only when given `--json`, so a gate run leaves the
+record alone.
 
 ### Reading it
 
 With 20 questions, one question is 0.05 on any per-question average. The
-simple pipeline's faithfulness moved 0.06 between two runs of identical code. So:
+single pass's faithfulness moved by 0.06 across three runs of identical code,
+its relevancy by 0.04, and its correctness by 0.075. So:
 
-- **Correctness: no measured difference.** 0.725 against 0.675 is one question.
+- **Correctness: no measured difference.** 0.725 against 0.675 is one question,
+  and the single pass's own third run (0.750) scored above the agent.
 - **Faithfulness: the agent is higher in both runs** (by 0.03 and 0.09). This is
   plausibly real, since an answer written from 1.6 chunks has less to
   misattribute than one written from 5. But it's inside the noise of a strict

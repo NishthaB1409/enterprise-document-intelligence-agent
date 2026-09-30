@@ -338,7 +338,7 @@ first live run refused a question the document answered, eleven times out of
 twelve. The regression, the fix, and what the numbers do and don't prove are in
 **[`eval/ROUTING.md`](eval/ROUTING.md)**.
 
-### Contradiction detection — runner shipped, not yet measured
+### Contradiction detection — shipped
 
 Twelve critique cases: six where two sources state the same term differently,
 and six hard negatives (different terms with figures in the same unit, and
@@ -350,7 +350,11 @@ be set from. Needs an API key.
 python -m eval.review_eval --trials 6
 ```
 
-What it measures, and why the negatives matter as much as the positives, is in
+First run: **30/36 conflicts detected, 0/36 false alarms**, and the grader kept
+both sides of every conflict (36/36). The critic's confidence separates the two
+halves cleanly. Conflict cases never scored above 0.40, and clean cases never
+below 0.80, so `REVIEW_MIN_CONFIDENCE=0.7` sits in the gap. The one missed case
+is still held, by its low confidence. The details are in
 **[`eval/REVIEW.md`](eval/REVIEW.md)**.
 
 ### Answer quality — shipped
@@ -361,8 +365,8 @@ against the gold spans. Context precision and recall are computed exactly from
 the gold spans, so no judge is needed there. Needs an API key and `uv sync --extra eval`.
 
 ```bash
-python -m eval.answer_eval                          # both pipelines, ~440 calls
-python -m eval.answer_eval --pipelines simple --gate   # the CI gate
+python -m eval.answer_eval --json eval/answer_results.json   # both pipelines, ~440 calls
+python -m eval.answer_eval --pipelines simple --gate          # the CI gate
 ```
 
 **Result: on this corpus the agentic graph does not beat the single pass.**
@@ -435,7 +439,7 @@ Every layer below the API sits behind a Protocol (`Embedder`, `VectorStore`, `An
 - [x] Baseline RAG with citations
 - [x] Hybrid retrieval + reranker (measured: [no lift on this corpus](eval/README.md))
 - [x] Agentic graph: route → grade → rewrite → generate → critique (opt-in; [routing measured](eval/ROUTING.md), [end to end: no lift](eval/ANSWERS.md))
-- [x] Human-in-the-loop gate + contradiction detection ([runner shipped](eval/REVIEW.md), not yet measured)
+- [x] Human-in-the-loop gate + contradiction detection ([measured: 30/36 detected, 0/36 false alarms](eval/REVIEW.md))
 - [x] Answer-quality eval with Ragas + CI regression gate ([measured: agent does not beat the single pass](eval/ANSWERS.md))
 - [ ] Attach eval scores to Langfuse traces; run the gate in CI
 - [ ] One-command Docker packaging
