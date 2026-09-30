@@ -1,0 +1,1383 @@
+{
+  "config": {
+    "answer_model": "gpt-4o-mini",
+    "agent_model": "gpt-4o-mini",
+    "judge_model": "gpt-4o-mini",
+    "top_k": 5,
+    "review_min_confidence": 0.7,
+    "questions": 26
+  },
+  "summary": {
+    "simple": {
+      "questions": 26,
+      "errors": 0,
+      "answered": 1.0,
+      "faithfulness": 0.8047619047619048,
+      "answer_relevancy": 0.7656646748515317,
+      "answer_correctness": 0.675,
+      "context_precision": 0.7016666666666667,
+      "context_recall": 0.85,
+      "chunks_shown": 5.0,
+      "held": 0.0,
+      "unanswerable_declined": 1.0,
+      "unanswerable_released": 0
+    },
+    "agent": {
+      "questions": 26,
+      "errors": 0,
+      "answered": 0.9,
+      "faithfulness": 0.8935185185185185,
+      "answer_relevancy": 0.6979397465408309,
+      "answer_correctness": 0.725,
+      "context_precision": 0.775,
+      "context_recall": 0.85,
+      "chunks_shown": 1.65,
+      "held": 0.15384615384615385,
+      "unanswerable_declined": 1.0,
+      "unanswerable_released": 0
+    }
+  },
+  "cost": {
+    "simple": {
+      "calls": 26,
+      "prompt_tokens": 29548,
+      "completion_tokens": 2171,
+      "calls_per_question": 1.0,
+      "tokens_per_question": 1219.9615384615386
+    },
+    "agent": {
+      "calls": 104,
+      "prompt_tokens": 76326,
+      "completion_tokens": 9003,
+      "calls_per_question": 4.0,
+      "tokens_per_question": 3281.8846153846152
+    }
+  },
+  "samples": {
+    "simple": [
+      {
+        "pipeline": "simple",
+        "question": "What is the liability cap in Section 12.4?",
+        "kind": "lexical",
+        "gold_span": "shall not exceed the total fees paid or payable by Customer in the twelve (12) months",
+        "answer": "The liability cap in Section 12.4 is that each party's total aggregate liability arising out of this Agreement shall not exceed the total fees paid or payable by Customer in the twelve (12) months immediately preceding the event giving rise to the claim.",
+        "answered": true,
+        "judgements": [
+          true,
+          false,
+          false,
+          false,
+          false
+        ],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "retrieve",
+          "generate"
+        ],
+        "error": null,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.9735543875765229,
+        "answer_correctness": 1.0
+      },
+      {
+        "pipeline": "simple",
+        "question": "Do you hold a SOC 2 Type II attestation?",
+        "kind": "lexical",
+        "gold_span": "Provider maintains a SOC 2 Type II attestation",
+        "answer": "Yes, the provider maintains a SOC 2 Type II attestation covering the Security, Availability, and Confidentiality trust services criteria.",
+        "answered": true,
+        "judgements": [
+          true,
+          false,
+          false,
+          false,
+          false
+        ],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "retrieve",
+          "generate"
+        ],
+        "error": null,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.9235009238572139,
+        "answer_correctness": 1.0
+      },
+      {
+        "pipeline": "simple",
+        "question": "What is the 99.95% availability commitment?",
+        "kind": "lexical",
+        "gold_span": "available at least 99.95% of the time in each calendar month",
+        "answer": "The 99.95% availability commitment is a promise made by the Provider in the Service Level Agreement that the Services will be made available at least 99.95% of the time in each calendar month, excluding Scheduled Maintenance.",
+        "answered": true,
+        "judgements": [
+          true,
+          false,
+          false,
+          false,
+          false
+        ],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "retrieve",
+          "generate"
+        ],
+        "error": null,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.8384744983340114,
+        "answer_correctness": 1.0
+      },
+      {
+        "pipeline": "simple",
+        "question": "Is data encrypted at rest with AES-256?",
+        "kind": "lexical",
+        "gold_span": "at rest using AES-256",
+        "answer": "Yes, data is encrypted at rest using AES-256. This is specified in the Information Security Policy.",
+        "answered": true,
+        "judgements": [
+          true,
+          false,
+          false,
+          false,
+          false
+        ],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "retrieve",
+          "generate"
+        ],
+        "error": null,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.8992607095882658,
+        "answer_correctness": 1.0
+      },
+      {
+        "pipeline": "simple",
+        "question": "What is a Permitted Sub-processor?",
+        "kind": "lexical",
+        "gold_span": "\"Permitted Sub-processor\" means a third party approved in writing",
+        "answer": "A Permitted Sub-processor is a third party approved in writing by Customer to process Customer Data, as defined in the Master Services Agreement.",
+        "answered": true,
+        "judgements": [
+          true,
+          false,
+          false,
+          false,
+          false
+        ],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "retrieve",
+          "generate"
+        ],
+        "error": null,
+        "faithfulness": 0.5,
+        "answer_relevancy": 0.9999999999999997,
+        "answer_correctness": 1.0
+      },
+      {
+        "pipeline": "simple",
+        "question": "What is the 72 hour breach notification requirement?",
+        "kind": "lexical",
+        "gold_span": "within seventy-two (72) hours, after becoming aware of a Personal Data Breach",
+        "answer": "The Provider shall notify the Customer without undue delay, and in any event within seventy-two (72) hours, after becoming aware of a Personal Data Breach affecting Customer Personal Data. The notification must describe the nature of the breach, the categories and approximate number of data subjects concerned, and the measures taken to address it.",
+        "answered": true,
+        "judgements": [
+          true,
+          false,
+          false,
+          false,
+          false
+        ],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "retrieve",
+          "generate"
+        ],
+        "error": null,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.7569172440036273,
+        "answer_correctness": 0.5
+      },
+      {
+        "pipeline": "simple",
+        "question": "Which TLS version is used in transit?",
+        "kind": "lexical",
+        "gold_span": "encrypted in transit using TLS 1.3",
+        "answer": "The TLS version used in transit is TLS 1.3 according to the current Information Security Policy.",
+        "answered": true,
+        "judgements": [
+          false,
+          true,
+          false,
+          false,
+          false
+        ],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "retrieve",
+          "generate"
+        ],
+        "error": null,
+        "faithfulness": 0.0,
+        "answer_relevancy": 0.9345022986887913,
+        "answer_correctness": 0.5
+      },
+      {
+        "pipeline": "simple",
+        "question": "What is the recovery time objective?",
+        "kind": "lexical",
+        "gold_span": "recovery time objective of four (4) hours",
+        "answer": "The recovery time objective is forty-eight (48) hours according to the source from the 2019 information security policy, while a different source states it is four (4) hours in the 2023 information security policy.",
+        "answered": true,
+        "judgements": [
+          false,
+          true,
+          false,
+          false,
+          false
+        ],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "retrieve",
+          "generate"
+        ],
+        "error": null,
+        "faithfulness": 0.0,
+        "answer_relevancy": 0.0,
+        "answer_correctness": 0.0
+      },
+      {
+        "pipeline": "simple",
+        "question": "What counts as an Excluded Claim?",
+        "kind": "lexical",
+        "gold_span": "\"Excluded Claims\" means claims arising from indemnification obligations",
+        "answer": "An Excluded Claim means claims arising from indemnification obligations, breach of confidentiality, or a party's gross negligence or wilful misconduct.",
+        "answered": true,
+        "judgements": [
+          true,
+          false,
+          false,
+          false,
+          false
+        ],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "retrieve",
+          "generate"
+        ],
+        "error": null,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.9374353633078947,
+        "answer_correctness": 1.0
+      },
+      {
+        "pipeline": "simple",
+        "question": "What service credit applies below 95.0% availability?",
+        "kind": "lexical",
+        "gold_span": "availability below 95.0% earns fifty percent (50%)",
+        "answer": "If availability falls below 95.0%, the Customer earns a service credit of fifty percent (50%) against the following month's fees. This is specified in the Service Level Agreement.",
+        "answered": true,
+        "judgements": [
+          true,
+          false,
+          false,
+          false,
+          false
+        ],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "retrieve",
+          "generate"
+        ],
+        "error": null,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.8065748943438211,
+        "answer_correctness": 1.0
+      },
+      {
+        "pipeline": "simple",
+        "question": "How much warning must we give if we want to walk away from the contract early?",
+        "kind": "semantic",
+        "gold_span": "terminate this Agreement for convenience upon ninety (90) days prior written notice",
+        "answer": "To terminate the agreement early for cause, either party must provide written notice to the other party. The other party then has thirty (30) days to cure the material breach after receiving the notice. If the breach is not cured within that time, the terminating party may walk away from the contract.",
+        "answered": true,
+        "judgements": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "retrieve",
+          "generate"
+        ],
+        "error": null,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.7745752416805803,
+        "answer_correctness": 0.0
+      },
+      {
+        "pipeline": "simple",
+        "question": "How long do staff have to file receipts to get their money back?",
+        "kind": "semantic",
+        "gold_span": "Business expenses must be submitted within sixty (60) days",
+        "answer": "Full-time employees must submit business expenses within sixty (60) days of being incurred to get reimbursed.",
+        "answered": true,
+        "judgements": [
+          false,
+          false,
+          true,
+          false,
+          false
+        ],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "retrieve",
+          "generate"
+        ],
+        "error": null,
+        "faithfulness": 0.6666666666666666,
+        "answer_relevancy": 0.7600123487100015,
+        "answer_correctness": 1.0
+      },
+      {
+        "pipeline": "simple",
+        "question": "Are people allowed to work from home?",
+        "kind": "semantic",
+        "gold_span": "Employees may work remotely up to three (3) days per week",
+        "answer": "Employees may work remotely up to three (3) days per week with manager approval. Fully remote arrangements require approval from a department head and are reviewed annually.",
+        "answered": true,
+        "judgements": [
+          true,
+          false,
+          false,
+          false,
+          false
+        ],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "retrieve",
+          "generate"
+        ],
+        "error": null,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.7469522766764661,
+        "answer_correctness": 1.0
+      },
+      {
+        "pipeline": "simple",
+        "question": "If everything goes down, how fast will someone get back to us?",
+        "kind": "semantic",
+        "gold_span": "acknowledge a Severity 1 incident within fifteen (15) minutes",
+        "answer": "If there is a Priority A incident, customer communications are sent every hour until resolution, which implies that there will be a response at least every hour until the issue is resolved.",
+        "answered": true,
+        "judgements": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "retrieve",
+          "generate"
+        ],
+        "error": null,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.5297885352509739,
+        "answer_correctness": 0.0
+      },
+      {
+        "pipeline": "simple",
+        "question": "How many holidays do employees get each year?",
+        "kind": "semantic",
+        "gold_span": "accrue twenty-five (25) days of paid annual leave per year",
+        "answer": "Employees accrue twenty-five (25) days of paid annual leave per year according to the employee handbook.",
+        "answered": true,
+        "judgements": [
+          true,
+          false,
+          false,
+          false,
+          false
+        ],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "retrieve",
+          "generate"
+        ],
+        "error": null,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.8149307581985213,
+        "answer_correctness": 1.0
+      },
+      {
+        "pipeline": "simple",
+        "question": "If the vendor breaks the deal badly, how long do they get to put it right?",
+        "kind": "semantic",
+        "gold_span": "fails to cure that breach within thirty (30) days",
+        "answer": "The length of the remedy period varies depending on the specific agreement in question. Under the Master Services Agreement, the other party has thirty (30) days to cure a material breach after receiving notice (source [1]). In the Globex Analytics Agreement, they are given 45 days (source [3]). The Northwind Logistics Agreement allows for 60 days (source [4]), while the Initech Payments Agreement extends this period to 90 days (source [5]). Therefore, the time allowed for the vendor to address a material breach ranges from 30 to 90 days depending on the agreement.",
+        "answered": true,
+        "judgements": [
+          true,
+          false,
+          false,
+          false,
+          false
+        ],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "retrieve",
+          "generate"
+        ],
+        "error": null,
+        "faithfulness": 0.5,
+        "answer_relevancy": 0.7529688787898206,
+        "answer_correctness": 0.0
+      },
+      {
+        "pipeline": "simple",
+        "question": "What happens to our information once we stop being a customer?",
+        "kind": "semantic",
+        "gold_span": "delete or return all Customer Personal Data within sixty (60) days",
+        "answer": "Once you stop being a customer, your account records will be retained for seven (7) years after the account closes, in line with statutory obligations. Any support correspondence will be retained for twenty-four (24) months. Additionally, upon termination of the agreement, the provider shall delete or return all customer personal data within sixty (60) days, except where retention is required by applicable law.",
+        "answered": true,
+        "judgements": [
+          false,
+          true,
+          false,
+          false,
+          false
+        ],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "retrieve",
+          "generate"
+        ],
+        "error": null,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.7959432316978482,
+        "answer_correctness": 1.0
+      },
+      {
+        "pipeline": "simple",
+        "question": "How often does someone check who can get into the systems?",
+        "kind": "semantic",
+        "gold_span": "Access rights are reviewed quarterly",
+        "answer": "Access rights to production systems are reviewed quarterly.",
+        "answered": true,
+        "judgements": [
+          false,
+          false,
+          false,
+          false,
+          true
+        ],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "retrieve",
+          "generate"
+        ],
+        "error": null,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.7006519284094006,
+        "answer_correctness": 1.0
+      },
+      {
+        "pipeline": "simple",
+        "question": "When would the platform normally be taken offline for work?",
+        "kind": "semantic",
+        "gold_span": "on Sundays between 02:00 and 06:00 UTC",
+        "answer": "Routine maintenance is scheduled on Tuesdays between 01:00 and 03:00 local time and is announced on the status page seven (7) days ahead.",
+        "answered": true,
+        "judgements": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "retrieve",
+          "generate"
+        ],
+        "error": null,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.676858545822539,
+        "answer_correctness": 0.0
+      },
+      {
+        "pipeline": "simple",
+        "question": "How quickly do bills have to be settled?",
+        "kind": "semantic",
+        "gold_span": "pay all undisputed invoices within forty-five (45) days",
+        "answer": "The payment terms vary by agreement. Under the Master Services Agreement, Customer shall pay all undisputed invoices within forty-five (45) days of the invoice date (source 1). In the Initech Payments Agreement, invoices are payable thirty (30) days from receipt (source 3). The Northwind Logistics Agreement also states that invoices are payable thirty (30) days from receipt (source 4). The Procurement Standard notes that the company's standard payment terms are sixty (60) days from invoice, unless shorter terms are agreed upon with finance approval (source 2). Therefore, bills must be settled within 30, 45, or 60 days depending on which agreement applies.",
+        "answered": true,
+        "judgements": [
+          true,
+          false,
+          false,
+          false,
+          false
+        ],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "retrieve",
+          "generate"
+        ],
+        "error": null,
+        "faithfulness": 0.42857142857142855,
+        "answer_relevancy": 0.6903914320943327,
+        "answer_correctness": 0.5
+      },
+      {
+        "pipeline": "simple",
+        "question": "How many weeks of paid parental leave do employees get?",
+        "kind": "unanswerable",
+        "gold_span": null,
+        "answer": "The sources do not provide information on the duration of paid parental leave for employees.",
+        "answered": false,
+        "judgements": [],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "retrieve",
+          "generate"
+        ],
+        "error": null,
+        "faithfulness": null,
+        "answer_relevancy": null,
+        "answer_correctness": null
+      },
+      {
+        "pipeline": "simple",
+        "question": "Is there a non-compete clause, and how long does it last?",
+        "kind": "unanswerable",
+        "gold_span": null,
+        "answer": "The sources do not mention a non-compete clause or its duration. Thus, I cannot provide an answer regarding whether there is a non-compete clause and how long it lasts.",
+        "answered": false,
+        "judgements": [],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "retrieve",
+          "generate"
+        ],
+        "error": null,
+        "faithfulness": null,
+        "answer_relevancy": null,
+        "answer_correctness": null
+      },
+      {
+        "pipeline": "simple",
+        "question": "Does the Provider keep the source code in escrow?",
+        "kind": "unanswerable",
+        "gold_span": null,
+        "answer": "The sources do not provide information regarding whether the Provider keeps the source code in escrow. The relevant agreements do not mention source code escrow arrangements at all.",
+        "answered": false,
+        "judgements": [],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "retrieve",
+          "generate"
+        ],
+        "error": null,
+        "faithfulness": null,
+        "answer_relevancy": null,
+        "answer_correctness": null
+      },
+      {
+        "pipeline": "simple",
+        "question": "What pension contribution does the employer make?",
+        "kind": "unanswerable",
+        "gold_span": null,
+        "answer": "This information is not provided in the sources. The sources do not contain any details regarding the employer's pension contribution.",
+        "answered": false,
+        "judgements": [],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "retrieve",
+          "generate"
+        ],
+        "error": null,
+        "faithfulness": null,
+        "answer_relevancy": null,
+        "answer_correctness": null
+      },
+      {
+        "pipeline": "simple",
+        "question": "How much overtime pay do staff receive?",
+        "kind": "unanswerable",
+        "gold_span": null,
+        "answer": "The sources do not provide any information regarding overtime pay for staff.",
+        "answered": false,
+        "judgements": [],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "retrieve",
+          "generate"
+        ],
+        "error": null,
+        "faithfulness": null,
+        "answer_relevancy": null,
+        "answer_correctness": null
+      },
+      {
+        "pipeline": "simple",
+        "question": "Who owns the trademarks used in the Services?",
+        "kind": "unanswerable",
+        "gold_span": null,
+        "answer": "The sources provided do not contain information regarding the ownership of trademarks used in the Services. There is no mention of trademarks in the documents available.",
+        "answered": false,
+        "judgements": [],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "retrieve",
+          "generate"
+        ],
+        "error": null,
+        "faithfulness": null,
+        "answer_relevancy": null,
+        "answer_correctness": null
+      }
+    ],
+    "agent": [
+      {
+        "pipeline": "agent",
+        "question": "What is the liability cap in Section 12.4?",
+        "kind": "lexical",
+        "gold_span": "shall not exceed the total fees paid or payable by Customer in the twelve (12) months",
+        "answer": "The liability cap in Section 12.4 states that each party's total aggregate liability arising out of this Agreement shall not exceed the total fees paid or payable by Customer in the twelve (12) months immediately preceding the event giving rise to the claim.",
+        "answered": true,
+        "judgements": [
+          true
+        ],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "route:retrieve",
+          "retrieve",
+          "grade:1/5",
+          "generate",
+          "critique:1.00"
+        ],
+        "error": null,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.9803981230184204,
+        "answer_correctness": 1.0
+      },
+      {
+        "pipeline": "agent",
+        "question": "Do you hold a SOC 2 Type II attestation?",
+        "kind": "lexical",
+        "gold_span": "Provider maintains a SOC 2 Type II attestation",
+        "answer": "Yes, the provider maintains a SOC 2 Type II attestation covering the Security, Availability, and Confidentiality trust services criteria. The report is refreshed annually and made available to the customer under NDA.",
+        "answered": true,
+        "judgements": [
+          true
+        ],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "route:retrieve",
+          "retrieve",
+          "grade:1/5",
+          "generate",
+          "critique:1.00"
+        ],
+        "error": null,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.8648391570645425,
+        "answer_correctness": 1.0
+      },
+      {
+        "pipeline": "agent",
+        "question": "What is the 99.95% availability commitment?",
+        "kind": "lexical",
+        "gold_span": "available at least 99.95% of the time in each calendar month",
+        "answer": "The 99.95% availability commitment means that the Provider will make the Services available at least 99.95% of the time in each calendar month, excluding Scheduled Maintenance.",
+        "answered": true,
+        "judgements": [
+          true
+        ],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "route:retrieve",
+          "retrieve",
+          "grade:1/5",
+          "generate",
+          "critique:1.00"
+        ],
+        "error": null,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.9771044163515291,
+        "answer_correctness": 1.0
+      },
+      {
+        "pipeline": "agent",
+        "question": "Is data encrypted at rest with AES-256?",
+        "kind": "lexical",
+        "gold_span": "at rest using AES-256",
+        "answer": "Yes, Customer Data is encrypted at rest using AES-256.",
+        "answered": true,
+        "judgements": [
+          true
+        ],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "route:retrieve",
+          "retrieve",
+          "grade:1/5",
+          "generate",
+          "critique:1.00"
+        ],
+        "error": null,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.8800002674131617,
+        "answer_correctness": 1.0
+      },
+      {
+        "pipeline": "agent",
+        "question": "What is a Permitted Sub-processor?",
+        "kind": "lexical",
+        "gold_span": "\"Permitted Sub-processor\" means a third party approved in writing",
+        "answer": "A Permitted Sub-processor is a third party approved in writing by Customer to process Customer Data.",
+        "answered": true,
+        "judgements": [
+          true,
+          false
+        ],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "route:retrieve",
+          "retrieve",
+          "grade:2/5",
+          "generate",
+          "critique:1.00"
+        ],
+        "error": null,
+        "faithfulness": 0.6666666666666666,
+        "answer_relevancy": 0.9999999999999997,
+        "answer_correctness": 1.0
+      },
+      {
+        "pipeline": "agent",
+        "question": "What is the 72 hour breach notification requirement?",
+        "kind": "lexical",
+        "gold_span": "within seventy-two (72) hours, after becoming aware of a Personal Data Breach",
+        "answer": "The 72 hour breach notification requirement states that the Provider shall notify the Customer without undue delay, and in any event within seventy-two (72) hours, after becoming aware of a Personal Data Breach affecting Customer Personal Data. The notification must describe the nature of the breach, the categories and approximate number of data subjects concerned, and the measures taken to address it.",
+        "answered": true,
+        "judgements": [
+          true
+        ],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "route:retrieve",
+          "retrieve",
+          "grade:1/5",
+          "generate",
+          "critique:1.00"
+        ],
+        "error": null,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.9880372008014869,
+        "answer_correctness": 0.5
+      },
+      {
+        "pipeline": "agent",
+        "question": "Which TLS version is used in transit?",
+        "kind": "lexical",
+        "gold_span": "encrypted in transit using TLS 1.3",
+        "answer": "The sources provide conflicting information about the version of TLS used in transit. The superseded policy states that data in transit is protected using TLS 1.2 (source 1), while the current policy states that Customer Data is encrypted in transit using TLS 1.3 (source 2).",
+        "answered": true,
+        "judgements": [
+          false,
+          true
+        ],
+        "unsupported_claims": 0,
+        "held": true,
+        "reasons": [
+          "sources disagree: Source 1 states that data in transit is protected using TLS 1.2, while Source 2 states that Customer Data is encrypted in transit using TLS 1.3."
+        ],
+        "steps": [
+          "route:retrieve",
+          "retrieve",
+          "grade:2/5",
+          "generate",
+          "critique:0.90,conflicts=1"
+        ],
+        "error": null,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.0,
+        "answer_correctness": 1.0
+      },
+      {
+        "pipeline": "agent",
+        "question": "What is the recovery time objective?",
+        "kind": "lexical",
+        "gold_span": "recovery time objective of four (4) hours",
+        "answer": "The recovery time objective is forty-eight (48) hours according to the information-security-policy-2019-superseded.pdf, but it is four (4) hours according to the information-security-policy.pdf.",
+        "answered": true,
+        "judgements": [
+          false,
+          true
+        ],
+        "unsupported_claims": 0,
+        "held": true,
+        "reasons": [
+          "the critic judged the answer not supported by its sources",
+          "critic confidence 0.60 is below 0.70",
+          "sources disagree: Source 1 states the recovery time objective is forty-eight (48) hours, while Source 2 states it is four (4) hours."
+        ],
+        "steps": [
+          "route:retrieve",
+          "retrieve",
+          "grade:2/5",
+          "generate",
+          "critique:0.60,conflicts=1"
+        ],
+        "error": null,
+        "faithfulness": 0.5,
+        "answer_relevancy": 0.0,
+        "answer_correctness": 1.0
+      },
+      {
+        "pipeline": "agent",
+        "question": "What counts as an Excluded Claim?",
+        "kind": "lexical",
+        "gold_span": "\"Excluded Claims\" means claims arising from indemnification obligations",
+        "answer": "An Excluded Claim means claims arising from indemnification obligations, breach of confidentiality, or a party's gross negligence or wilful misconduct.",
+        "answered": true,
+        "judgements": [
+          true
+        ],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "route:retrieve",
+          "retrieve",
+          "grade:1/5",
+          "generate",
+          "critique:0.90"
+        ],
+        "error": null,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.9374353633078947,
+        "answer_correctness": 1.0
+      },
+      {
+        "pipeline": "agent",
+        "question": "What service credit applies below 95.0% availability?",
+        "kind": "lexical",
+        "gold_span": "availability below 95.0% earns fifty percent (50%)",
+        "answer": "If the monthly availability falls below 95.0%, the Customer earns a service credit of fifty percent (50%) against the following month's fees.",
+        "answered": true,
+        "judgements": [
+          true
+        ],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "route:retrieve",
+          "retrieve",
+          "grade:1/5",
+          "generate",
+          "critique:1.00"
+        ],
+        "error": null,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.7979457083104093,
+        "answer_correctness": 1.0
+      },
+      {
+        "pipeline": "agent",
+        "question": "How much warning must we give if we want to walk away from the contract early?",
+        "kind": "semantic",
+        "gold_span": "terminate this Agreement for convenience upon ninety (90) days prior written notice",
+        "answer": "To terminate the contract early, either party must provide written notice of a material breach, and the other party must be given thirty (30) days to cure that breach before termination can occur.",
+        "answered": true,
+        "judgements": [
+          false
+        ],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "route:retrieve",
+          "retrieve",
+          "grade:1/5",
+          "generate",
+          "critique:0.90"
+        ],
+        "error": null,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.8594682822578968,
+        "answer_correctness": 0.0
+      },
+      {
+        "pipeline": "agent",
+        "question": "How long do staff have to file receipts to get their money back?",
+        "kind": "semantic",
+        "gold_span": "Business expenses must be submitted within sixty (60) days",
+        "answer": "Staff have to file receipts within sixty (60) days of being incurred to get their money back for business expenses.",
+        "answered": true,
+        "judgements": [
+          true
+        ],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "route:retrieve",
+          "retrieve",
+          "grade:1/5",
+          "generate",
+          "critique:1.00"
+        ],
+        "error": null,
+        "faithfulness": 0.6666666666666666,
+        "answer_relevancy": 0.8909953169609253,
+        "answer_correctness": 1.0
+      },
+      {
+        "pipeline": "agent",
+        "question": "Are people allowed to work from home?",
+        "kind": "semantic",
+        "gold_span": "Employees may work remotely up to three (3) days per week",
+        "answer": "Yes, employees are allowed to work from home up to three (3) days per week with manager approval. Fully remote arrangements require approval from a department head and are reviewed annually.",
+        "answered": true,
+        "judgements": [
+          true
+        ],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "route:retrieve",
+          "retrieve",
+          "grade:1/5",
+          "generate",
+          "critique:0.90"
+        ],
+        "error": null,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.8399635679158556,
+        "answer_correctness": 1.0
+      },
+      {
+        "pipeline": "agent",
+        "question": "If everything goes down, how fast will someone get back to us?",
+        "kind": "semantic",
+        "gold_span": "acknowledge a Severity 1 incident within fifteen (15) minutes",
+        "answer": "In the case of an incident, customer communications are sent every hour until resolution, according to the support escalation runbook, but specific response times for getting back to customers after everything goes down are not detailed in the provided sources.",
+        "answered": false,
+        "judgements": [
+          false,
+          false,
+          false
+        ],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "route:retrieve",
+          "retrieve",
+          "grade:3/5",
+          "generate",
+          "critique:0.90"
+        ],
+        "error": null,
+        "faithfulness": null,
+        "answer_relevancy": 0.0,
+        "answer_correctness": 0.0
+      },
+      {
+        "pipeline": "agent",
+        "question": "How many holidays do employees get each year?",
+        "kind": "semantic",
+        "gold_span": "accrue twenty-five (25) days of paid annual leave per year",
+        "answer": "The sources do not mention holidays or any specific number of holidays that employees receive each year. They only provide information on paid annual leave, which is twenty-five (25) days.",
+        "answered": false,
+        "judgements": [
+          true
+        ],
+        "unsupported_claims": 0,
+        "held": true,
+        "reasons": [
+          "the critic judged the answer not supported by its sources"
+        ],
+        "steps": [
+          "route:retrieve",
+          "retrieve",
+          "grade:1/5",
+          "generate",
+          "critique:0.70"
+        ],
+        "error": null,
+        "faithfulness": null,
+        "answer_relevancy": 0.0,
+        "answer_correctness": 1.0
+      },
+      {
+        "pipeline": "agent",
+        "question": "If the vendor breaks the deal badly, how long do they get to put it right?",
+        "kind": "semantic",
+        "gold_span": "fails to cure that breach within thirty (30) days",
+        "answer": "According to the sources, different agreements provide varying remedy periods for a vendor to correct a material default. The Globex Analytics Agreement allows 45 days for remedy (Source [2]), the Northwind Logistics Agreement allows 60 days (Source [3]), and the Initech Payments Agreement allows 90 days (Source [4]). Therefore, the time given for the vendor to put things right depends on which agreement is in effect.",
+        "answered": true,
+        "judgements": [
+          true,
+          false,
+          false,
+          false
+        ],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "route:retrieve",
+          "retrieve",
+          "grade:4/5",
+          "generate",
+          "critique:0.90"
+        ],
+        "error": null,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.7463741120522873,
+        "answer_correctness": 0.0
+      },
+      {
+        "pipeline": "agent",
+        "question": "What happens to our information once we stop being a customer?",
+        "kind": "semantic",
+        "gold_span": "delete or return all Customer Personal Data within sixty (60) days",
+        "answer": "When you stop being a customer, your account records are retained for seven (7) years after the account closes, in line with statutory obligations. Additionally, any customer personal data will be deleted or returned by the provider within sixty (60) days of termination of the agreement, except where retention is required by applicable law.",
+        "answered": true,
+        "judgements": [
+          false,
+          true,
+          false
+        ],
+        "unsupported_claims": 0,
+        "held": true,
+        "reasons": [
+          "the critic judged the answer not supported by its sources",
+          "critic confidence 0.60 is below 0.70",
+          "sources disagree: Source [2] states that customer personal data shall be deleted or returned within sixty (60) days upon termination, while Source [3] notes that client data must be returned or destroyed within ninety (90) days of the end of the agreement."
+        ],
+        "steps": [
+          "route:retrieve",
+          "retrieve",
+          "grade:3/5",
+          "generate",
+          "critique:0.60,conflicts=1"
+        ],
+        "error": null,
+        "faithfulness": 0.75,
+        "answer_relevancy": 0.7959432316978482,
+        "answer_correctness": 0.5
+      },
+      {
+        "pipeline": "agent",
+        "question": "How often does someone check who can get into the systems?",
+        "kind": "semantic",
+        "gold_span": "Access rights are reviewed quarterly",
+        "answer": "Access rights are reviewed quarterly.",
+        "answered": true,
+        "judgements": [
+          true
+        ],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "route:retrieve",
+          "retrieve",
+          "grade:1/5",
+          "generate",
+          "critique:1.00"
+        ],
+        "error": null,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.7081981229573411,
+        "answer_correctness": 1.0
+      },
+      {
+        "pipeline": "agent",
+        "question": "When would the platform normally be taken offline for work?",
+        "kind": "semantic",
+        "gold_span": "on Sundays between 02:00 and 06:00 UTC",
+        "answer": "The platform would normally be taken offline for routine maintenance on Tuesdays between 01:00 and 03:00 local time.",
+        "answered": true,
+        "judgements": [
+          false
+        ],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "route:retrieve",
+          "retrieve",
+          "grade:1/5",
+          "generate",
+          "critique:1.00"
+        ],
+        "error": null,
+        "faithfulness": 0.5,
+        "answer_relevancy": 0.931264086656479,
+        "answer_correctness": 0.0
+      },
+      {
+        "pipeline": "agent",
+        "question": "How quickly do bills have to be settled?",
+        "kind": "semantic",
+        "gold_span": "pay all undisputed invoices within forty-five (45) days",
+        "answer": "Invoices must be settled within different timeframes based on the specific agreements. Under the Master Services Agreement, customer invoices are to be paid within forty-five (45) days of the invoice date (claim 1). In the Initech Payments Agreement, invoices are payable thirty (30) days from receipt (claim 2). Similarly, the Northwind Logistics Agreement also stipulates that invoices are payable thirty (30) days from receipt (claim 3).",
+        "answered": true,
+        "judgements": [
+          true,
+          false,
+          false,
+          false
+        ],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "route:retrieve",
+          "retrieve",
+          "grade:4/5",
+          "generate",
+          "critique:0.90"
+        ],
+        "error": null,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.76082797405054,
+        "answer_correctness": 0.5
+      },
+      {
+        "pipeline": "agent",
+        "question": "How many weeks of paid parental leave do employees get?",
+        "kind": "unanswerable",
+        "gold_span": null,
+        "answer": "No indexed document contains anything relevant to this question.",
+        "answered": false,
+        "judgements": [],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "route:retrieve",
+          "retrieve",
+          "grade:0/5",
+          "rewrite:'What is the duration of paid parental leave provided to employees?'",
+          "retrieve",
+          "grade:0/5",
+          "generate",
+          "critique:no-sources"
+        ],
+        "error": null,
+        "faithfulness": null,
+        "answer_relevancy": null,
+        "answer_correctness": null
+      },
+      {
+        "pipeline": "agent",
+        "question": "Is there a non-compete clause, and how long does it last?",
+        "kind": "unanswerable",
+        "gold_span": null,
+        "answer": "No indexed document contains anything relevant to this question.",
+        "answered": false,
+        "judgements": [],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "route:retrieve",
+          "retrieve",
+          "grade:0/5",
+          "rewrite:'Is there a provision regarding non-competition obligations, and what is the duration of such obligations?'",
+          "retrieve",
+          "grade:0/5",
+          "generate",
+          "critique:no-sources"
+        ],
+        "error": null,
+        "faithfulness": null,
+        "answer_relevancy": null,
+        "answer_correctness": null
+      },
+      {
+        "pipeline": "agent",
+        "question": "Does the Provider keep the source code in escrow?",
+        "kind": "unanswerable",
+        "gold_span": null,
+        "answer": "No indexed document contains anything relevant to this question.",
+        "answered": false,
+        "judgements": [],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "route:retrieve",
+          "retrieve",
+          "grade:0/5",
+          "rewrite:'Does the Agreement provide for the storage of source code in escrow by the Provider?'",
+          "retrieve",
+          "grade:0/5",
+          "generate",
+          "critique:no-sources"
+        ],
+        "error": null,
+        "faithfulness": null,
+        "answer_relevancy": null,
+        "answer_correctness": null
+      },
+      {
+        "pipeline": "agent",
+        "question": "What pension contribution does the employer make?",
+        "kind": "unanswerable",
+        "gold_span": null,
+        "answer": "No indexed document contains anything relevant to this question.",
+        "answered": false,
+        "judgements": [],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "route:retrieve",
+          "retrieve",
+          "grade:0/5",
+          "rewrite:\"What is the employer's obligation regarding pension contributions?\"",
+          "retrieve",
+          "grade:0/5",
+          "generate",
+          "critique:no-sources"
+        ],
+        "error": null,
+        "faithfulness": null,
+        "answer_relevancy": null,
+        "answer_correctness": null
+      },
+      {
+        "pipeline": "agent",
+        "question": "How much overtime pay do staff receive?",
+        "kind": "unanswerable",
+        "gold_span": null,
+        "answer": "No indexed document contains anything relevant to this question.",
+        "answered": false,
+        "judgements": [],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "route:retrieve",
+          "retrieve",
+          "grade:0/5",
+          "rewrite:'What are the stipulations regarding overtime compensation for personnel?'",
+          "retrieve",
+          "grade:0/5",
+          "generate",
+          "critique:no-sources"
+        ],
+        "error": null,
+        "faithfulness": null,
+        "answer_relevancy": null,
+        "answer_correctness": null
+      },
+      {
+        "pipeline": "agent",
+        "question": "Who owns the trademarks used in the Services?",
+        "kind": "unanswerable",
+        "gold_span": null,
+        "answer": "No indexed document contains anything relevant to this question.",
+        "answered": false,
+        "judgements": [],
+        "unsupported_claims": 0,
+        "held": false,
+        "reasons": [],
+        "steps": [
+          "route:retrieve",
+          "retrieve",
+          "grade:0/5",
+          "rewrite:'What provisions outline the ownership of trademarks utilized in the Services?'",
+          "retrieve",
+          "grade:0/5",
+          "generate",
+          "critique:no-sources"
+        ],
+        "error": null,
+        "faithfulness": null,
+        "answer_relevancy": null,
+        "answer_correctness": null
+      }
+    ]
+  }
+}

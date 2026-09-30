@@ -168,3 +168,59 @@ QUESTIONS: list[Question] = [
         doc_id="msa",
     ),
 ]
+
+
+@dataclass(frozen=True, slots=True)
+class Unanswerable:
+    """A question the corpus does not answer, asked the way a user would.
+
+    Every one is on-topic — the kind of thing these documents govern — because
+    off-topic questions are the router's problem and are measured in
+    `routing_eval`. These have to reach retrieval, come back with plausible
+    neighbours, and be declined anyway. That is the dangerous case: a model
+    handed a leave policy when asked about parental leave can write a fluent,
+    cited, wrong answer from it.
+
+    `tests/test_eval_corpus.py` checks that each `absent` term appears nowhere
+    in the corpus, so a new distractor cannot quietly make one answerable.
+    """
+
+    question: str
+    # Words whose absence from every document makes this unanswerable.
+    absent: tuple[str, ...]
+    # The neighbouring content most likely to be cited instead.
+    temptation: str
+
+
+UNANSWERABLE: list[Unanswerable] = [
+    Unanswerable(
+        "How many weeks of paid parental leave do employees get?",
+        ("parental", "maternity", "paternity"),
+        "the handbook's annual leave entitlement",
+    ),
+    Unanswerable(
+        "Is there a non-compete clause, and how long does it last?",
+        ("non-compete", "non-solicit"),
+        "termination and post-termination clauses",
+    ),
+    Unanswerable(
+        "Does the Provider keep the source code in escrow?",
+        ("escrow", "source code"),
+        "business continuity and data return clauses",
+    ),
+    Unanswerable(
+        "What pension contribution does the employer make?",
+        ("pension", "retirement"),
+        "handbook benefits and expenses",
+    ),
+    Unanswerable(
+        "How much overtime pay do staff receive?",
+        ("overtime",),
+        "working hours and remote work policy",
+    ),
+    Unanswerable(
+        "Who owns the trademarks used in the Services?",
+        ("trademark",),
+        "the intellectual property indemnity",
+    ),
+]

@@ -82,7 +82,8 @@ ROUTE_SCHEMA = schema_of(Route, required=["needs_documents", "reason"])
 
 ROUTE_SYSTEM = """\
 You decide whether a question can be answered from an enterprise document \
-library — contracts, policies, agreements, filings, handbooks.
+library — contracts, policies, agreements, filings, handbooks, security and IT \
+policies, service level agreements.
 
 You are not judging whether the question mentions a document. It will not — \
 users ask about their situation, not about the filing system. You are judging \
@@ -95,6 +96,14 @@ it. "How much holiday do I get?" is a leave-entitlement question, "can I take \
 the laptop home?" is an equipment-policy question, and "who pays if the \
 shipment arrives damaged?" is a risk-of-loss question — all true. Rephrasing a \
 question into the document's vocabulary happens later and is not your job.
+
+Technical subjects are no exception. Security and IT policies govern how data is \
+protected, stored, backed up, and accessed, and SLAs govern uptime and support. \
+A question about what this organisation does, uses, or commits to is a policy \
+question however technical it sounds: "which cloud region is our data stored \
+in?" and "how fast are security patches applied?" are both true. Only a question \
+about what a technology is or how it works in general — the kind a textbook \
+answers — is general knowledge.
 
 Set it to false only when no document library could hold the answer, whatever it \
 contained: greetings and small talk, questions about you or your capabilities, \

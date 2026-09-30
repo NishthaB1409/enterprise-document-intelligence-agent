@@ -9,7 +9,7 @@ python -m eval.routing_eval --trials 12
 ```
 
 Unlike `retrieval_eval`, this one needs `OPENAI_API_KEY` and costs money —
-`trials` calls per case on `AGENT_MODEL`. At the defaults that is 192 calls of a
+`trials` calls per case on `AGENT_MODEL`. At the defaults (20 cases) that is 240 calls of a
 few hundred tokens each.
 
 ## Why routing specifically
@@ -107,10 +107,42 @@ Two things also remain open:
   a routing decision was made and could be revisited. Phase 4's human-review
   gate is where that becomes actionable.
 
+## Second regression: technical policy questions
+
+The caveat above was right about where the next failure would be. The phase-5
+answer eval (`eval/answer_eval.py`) asked *"Which TLS version is used in
+transit?"*, which the information security policy answers in one sentence. The
+router refused it. Its reason:
+
+> The question is about a technical specification regarding TLS versions, which
+> is not governed by enterprise documents like contracts or policies.
+
+This is the same failure as the first regression in a new place. The prompt's
+list of subject matter was all legal and HR (terms, obligations, entitlements,
+payments), so the model read a protocol question as general IT knowledge. Three
+technical cases were added, plus a refusal on the other side of the line
+(*"What does TLS stand for?"*), and measured before the prompt was touched:
+
+| | correct | worst cases |
+|---|---|---|
+| prompt after the first fix | 217/240 (90.4%) | TLS version **0/12**, MFA **1/12** |
+| + technical subjects named, with the "what this organisation does" test | 240/240 (100%) | none below 12/12 |
+
+The fix names security policies and SLAs as part of the library, and draws the
+line at *what this organisation does, uses, or commits to* (policy) versus *what
+a technology is* (general knowledge). The boundary case still refuses 12/12, so
+the router didn't simply learn to say yes to anything technical. The prompt's
+examples (cloud region, patch timing) deliberately overlap none of the eval cases.
+
+Both regressions were found by a different eval from the one that measures the
+router. A routing eval can only test the categories its author thought of, so
+the questions users actually ask, or an answer eval standing in for them, are
+what find the next gap.
+
 ## Reproducing
 
 ```bash
-python -m eval.routing_eval --trials 12     # ~192 calls on AGENT_MODEL
+python -m eval.routing_eval --trials 12     # ~240 calls on AGENT_MODEL
 python -m eval.routing_eval --trials 1      # a cheap smoke test, proves nothing
 ```
 

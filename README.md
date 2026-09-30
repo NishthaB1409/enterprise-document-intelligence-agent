@@ -61,8 +61,8 @@ The graph is orchestrated with **LangGraph**, which models the flow as a statefu
 | Retrieval / chunking | LlamaIndex | Deepest retrieval + indexing module library |
 | Orchestration | LangGraph | Stateful cyclic graphs, native checkpointing, HITL pauses |
 | Vector DB | Qdrant | Fast, open-source, strong hybrid-search support |
-| RAG metrics | Ragas | Canonical reference-free RAG metric suite |
-| CI quality gates | DeepEval | pytest-style metric assertions for CI/CD |
+| RAG metrics | Ragas | Canonical RAG metric suite; judges faithfulness, relevancy and correctness |
+| CI quality gate | `answer_eval --gate` | The same Ragas scores the report uses, so the gate and the report cannot disagree |
 | Tracing / observability | Langfuse | Open-source, traces every node next to its eval score |
 | Packaging | Docker Compose | One-command reproducible run |
 
@@ -99,8 +99,10 @@ The graph is orchestrated with **LangGraph**, which models the flow as a statefu
   thirty days and its schedule saying forty-five, for example), each resolved to
   the two spans. It runs inside the critique call that already happens, so it
   costs no extra call.
-- **Full evaluation harness** — retrieval is measured today ([`eval/README.md`](eval/README.md));
-  answer quality via Ragas and DeepEval gates is phase 5.
+- **Full evaluation harness** — retrieval, routing, contradiction detection, and
+  end-to-end answer quality each have a runner and a written result, negative
+  results included ([`eval/ANSWERS.md`](eval/ANSWERS.md)). The answer eval
+  doubles as a CI regression gate.
 
 ---
 
@@ -322,7 +324,7 @@ the chunker cannot silently invalidate the ground truth;
 
 ### Routing — shipped
 
-Sixteen questions run repeatedly through the router, scoring how often an
+Twenty questions run repeatedly through the router, scoring how often an
 answerable question actually reaches retrieval. Needs an API key, because it
 calls `AGENT_MODEL`.
 
@@ -351,13 +353,45 @@ python -m eval.review_eval --trials 6
 What it measures, and why the negatives matter as much as the positives, is in
 **[`eval/REVIEW.md`](eval/REVIEW.md)**.
 
-### Answer quality — phase 5
+### Answer quality — shipped
 
-Not yet wired up. Faithfulness, answer relevancy, and context precision/recall over
-the same golden set, with Ragas for measurement and DeepEval as a CI gate:
+The golden set plus six unanswerable questions, run through both pipelines and
+scored with Ragas (faithfulness, answer relevancy) and a correctness judge
+against the gold spans. Context precision and recall are computed exactly from
+the gold spans, so no judge is needed there. Needs an API key and `uv sync --extra eval`.
 
-| Metric | Target |
-|---|---|
+```bash
+python -m eval.answer_eval                          # both pipelines, ~440 calls
+python -m eval.answer_eval --pipelines simple --gate   # the CI gate
+```
+
+**Result: on this corpus the agentic graph does not beat the single pass.**
+
+| | single pass | agent |
+|---|---|---|
+| answer correctness | 0.675 | 0.725 |
+| faithfulness | 0.805 | 0.894 |
+| answer relevancy | 0.766 | 0.698 |
+| unanswerable questions declined | 6/6 | 6/6 |
+| model calls / question | 1.0 | 4.0 |
+
+Correctness differs by one question in twenty, which is inside the noise. The
+agent declined two answerable questions and costs 4× the calls. What it adds is
+review signals (critique, contradictions, holds), not better answers, so
+`AGENT_ENABLED` stays off by default. The eval also found a router regression on
+technical-policy questions (fixed, 0/12 → 12/12) and two Ragas metrics that
+misgrade fragment references.
+
+The full results, all six findings and the caveats are in
+**[`eval/ANSWERS.md`](eval/ANSWERS.md)**.
+
+The README's original targets (faithfulness ≥ 0.90, relevancy ≥ 0.85, precision
+≥ 0.80, recall ≥ 0.80) were measured for the first time here, and the single pass
+misses three of them. `--gate` therefore enforces **regression floors** set just
+below today's scores. A gate that fails every build gets switched off, so the
+targets stay as goals.
+
+---|---|
 | Faithfulness | ≥ 0.90 |
 | Answer relevancy | ≥ 0.85 |
 | Context precision | ≥ 0.80 |
@@ -385,7 +419,7 @@ enterprise-doc-agent/
 │   ├── review/            # review gate rules, contradiction resolution, the queue
 │   └── observability/     # Langfuse client, tracing middleware
 ├── tests/                 # in-process stand-ins for the embedder, store, and model
-├── eval/                  # Ragas + DeepEval harness (phase 5)
+├── eval/                  # retrieval, routing, review and answer-quality evals
 ├── Dockerfile
 ├── docker-compose.yml
 ├── .env.example
@@ -400,9 +434,10 @@ Every layer below the API sits behind a Protocol (`Embedder`, `VectorStore`, `An
 
 - [x] Baseline RAG with citations
 - [x] Hybrid retrieval + reranker (measured: [no lift on this corpus](eval/README.md))
-- [x] Agentic graph: route → grade → rewrite → generate → critique (opt-in; [routing measured](eval/ROUTING.md), end-to-end benefit not yet)
+- [x] Agentic graph: route → grade → rewrite → generate → critique (opt-in; [routing measured](eval/ROUTING.md), [end to end: no lift](eval/ANSWERS.md))
 - [x] Human-in-the-loop gate + contradiction detection ([runner shipped](eval/REVIEW.md), not yet measured)
-- [ ] Ragas + DeepEval + Langfuse evaluation harness
+- [x] Answer-quality eval with Ragas + CI regression gate ([measured: agent does not beat the single pass](eval/ANSWERS.md))
+- [ ] Attach eval scores to Langfuse traces; run the gate in CI
 - [ ] One-command Docker packaging
 
 ---

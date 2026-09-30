@@ -19,7 +19,7 @@ from app.ingest.chunking import build_splitter, chunk_pages
 from eval.corpus import CORPUS, GOLD_DOCUMENTS
 from eval.distractors import DISTRACTORS
 from eval.metrics import is_relevant, normalize
-from eval.questions import QUESTIONS
+from eval.questions import QUESTIONS, UNANSWERABLE
 from eval.retrieval_eval import CHUNK_OVERLAP_WORDS, CHUNK_SIZE_WORDS, TOP_K
 
 
@@ -154,3 +154,12 @@ def test_sources_look_like_filenames():
     document, not an internal key."""
     for document in CORPUS:
         assert re.fullmatch(r"[a-z0-9][a-z0-9.\-]*\.pdf", document.source), document.source
+
+
+@pytest.mark.parametrize("case", UNANSWERABLE, ids=lambda c: c.question[:40])
+def test_unanswerable_questions_stay_unanswerable(case):
+    """A distractor added later that mentions parental leave would turn a
+    correct decline into a scored failure, and nothing else would notice."""
+    corpus = normalize(" ".join(page.text for doc in CORPUS for page in doc.pages))
+    present = [term for term in case.absent if normalize(term) in corpus]
+    assert present == [], f"now in the corpus: {present}"

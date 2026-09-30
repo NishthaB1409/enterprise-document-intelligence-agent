@@ -73,3 +73,36 @@ def ndcg_at_k(judgements: Sequence[bool], k: int) -> float:
         return 0.0
     ideal = sum(1.0 / math.log2(rank + 1) for rank in range(1, ideal_count + 1))
     return gain / ideal
+
+
+# --- answer-level context metrics ---------------------------------------------
+#
+# The same two numbers Ragas calls context precision and context recall, computed
+# from the gold spans instead of by asking a model which chunks look relevant.
+# The golden set already records the passage that answers each question, so a
+# judge here would be paying to approximate a fact that is written down.
+#
+# They differ from the retrieval metrics above in what they are applied to: the
+# chunks the *generator was shown*, after grading, not what retrieval returned.
+# That is the list the answer was written from, and the difference between the two
+# is exactly what grading is supposed to change.
+
+
+def context_precision(judgements: Sequence[bool]) -> float:
+    """Ragas's rank-weighted precision: the mean of precision@k over every
+    position k that holds a relevant chunk. 1.0 when everything relevant comes
+    first; 0.0 when nothing shown is relevant."""
+    found = 0
+    total = 0.0
+    for rank, relevant in enumerate(judgements, start=1):
+        if relevant:
+            found += 1
+            total += found / rank
+    return total / found if found else 0.0
+
+
+def context_recall(judgements: Sequence[bool]) -> float:
+    """Whether the passage that answers the question was shown at all. Binary,
+    because each question has one gold span: there is no partial credit for
+    showing half of a sentence."""
+    return 1.0 if any(judgements) else 0.0

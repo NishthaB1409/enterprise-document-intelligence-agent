@@ -22,6 +22,8 @@ guessed from a stack trace. Each becomes an `LLMError` naming what to change.
 
 import json
 import logging
+import threading
+from dataclasses import dataclass
 from typing import Any, Protocol, TypeVar, runtime_checkable
 
 import openai
@@ -72,6 +74,25 @@ def _validate(model: type[T], text: str | None) -> T:
         raise LLMError(f"the model returned malformed JSON: {exc}") from exc
 
 
+@dataclass
+class Usage:
+    """Calls and tokens spent by one client since it was built.
+
+    What makes "the graph costs three to five calls per query" a measurement
+    rather than a figure worked out from the diagram: `eval/answer_eval.py`
+    reads it off the answering client and the agent client separately, so the
+    cost of each pipeline comes out next to its quality scores.
+    """
+
+    calls: int = 0
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+
+    @property
+    def total_tokens(self) -> int:
+        return self.prompt_tokens + self.completion_tokens
+
+
 class OpenAILLM:
     """OpenAI via strict `json_schema` response format.
 
@@ -100,6 +121,10 @@ class OpenAILLM:
         self._base_url = base_url
         self._max_tokens = max_tokens
         self._client: openai.OpenAI | None = None
+        self.usage = Usage()
+        # FastAPI calls one client from several worker threads, and `+=` on an
+        # attribute is not atomic.
+        self._usage_lock = threading.Lock()
 
     def _ensure_client(self) -> openai.OpenAI:
         if self._client is None:
@@ -156,6 +181,14 @@ class OpenAILLM:
                     "account cannot access it; check ANSWER_MODEL"
                 ) from exc
             raise LLMError(f"OpenAI returned {exc.status_code}: {exc}") from exc
+
+        # Counted before any of the checks below: a truncated or refused
+        # response was still billed.
+        if response.usage is not None:
+            with self._usage_lock:
+                self.usage.calls += 1
+                self.usage.prompt_tokens += response.usage.prompt_tokens
+                self.usage.completion_tokens += response.usage.completion_tokens
 
         choice = response.choices[0]
         if choice.message.refusal:

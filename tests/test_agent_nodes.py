@@ -79,6 +79,13 @@ class TestRouter:
 
         assert decision.needs_documents is True
 
+    def test_it_is_told_technical_policy_questions_need_documents(self):
+        """The answer eval found "Which TLS version is used in transit?" refused
+        12 times out of 12 as general IT knowledge. See eval/ROUTING.md."""
+        from app.graph.nodes import ROUTE_SYSTEM
+
+        assert "Technical subjects are no exception" in ROUTE_SYSTEM
+
     def test_it_asks_for_a_bounded_answer(self):
         """A route decision is a boolean and a sentence. A generous ceiling
         would not make it better, and the graph pays this on every query."""

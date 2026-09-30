@@ -66,6 +66,14 @@ CASES = [
     # register, it is the router.
     Case("What is the notice period for termination for convenience?", "search", "explicit"),
     Case("What liability insurance must the Provider maintain?", "search", "explicit"),
+    # Technical controls. Security policies and SLAs are documents too, but a
+    # question about a protocol or a backup reads like general IT knowledge.
+    # Added after the answer eval found "Which TLS version is used in transit?"
+    # refused as "a technical specification ... not governed by enterprise
+    # documents" — the security policy answers it in one sentence.
+    Case("Which TLS version is used in transit?", "search", "security policy"),
+    Case("How often are the backups tested?", "search", "business continuity"),
+    Case("Do you use multi-factor authentication?", "search", "access control"),
     # No document library holds these, however it was filled.
     Case("Hello!", "refuse", "greeting"),
     Case("Who won the 2018 World Cup?", "refuse", "general knowledge"),
@@ -73,6 +81,9 @@ CASES = [
     Case("What can you do?", "refuse", "meta"),
     Case("Write me a poem about the sea.", "refuse", "unrelated generation"),
     Case("Thanks, that is all.", "refuse", "small talk"),
+    # The boundary the technical cases need: what a technology *is* is general
+    # knowledge; what *this organisation* does with it is policy.
+    Case("What does TLS stand for?", "refuse", "general technical knowledge"),
 ]
 
 

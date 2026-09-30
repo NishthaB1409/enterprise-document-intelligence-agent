@@ -84,13 +84,22 @@ def build_services(settings: Settings) -> Services:
 
 
 def build_pipeline(
-    settings: Settings, retriever: Retriever, answerer: Answerer, llm: StructuredLLM
+    settings: Settings,
+    retriever: Retriever,
+    answerer: Answerer,
+    llm: StructuredLLM,
+    *,
+    agent_llm: StructuredLLM | None = None,
 ) -> QueryPipeline:
     """The agentic graph, or the single pass it has to justify itself against.
 
     Each node is constructed only if it is enabled, and the graph is handed
     `None` for the rest — so a disabled node is an absent object rather than a
     branch that runs and returns early.
+
+    `agent_llm` overrides the client the graph's nodes share. The answer eval
+    passes its own, so it can read the graph's token usage separately from the
+    answerer's while still getting exactly the graph this function builds.
     """
     if not settings.agent_enabled:
         return SimplePipeline(retriever, answerer)
@@ -98,7 +107,7 @@ def build_pipeline(
     # The graph's four extra calls are classification and paraphrase, so they
     # get their own client on a cheaper model. Set AGENT_MODEL to ANSWER_MODEL
     # if you would rather run one.
-    cheap = build_llm(settings, model=settings.agent_model)
+    cheap = agent_llm or build_llm(settings, model=settings.agent_model)
     return AgentPipeline(
         retriever=retriever,
         answerer=answerer,
