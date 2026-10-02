@@ -55,6 +55,60 @@ What it shows:
 - **The grader fix held.** Both sides of every conflict survived grading, 36/36,
   against 3/5 on the single case measured before the fix.
 
+## The answerer reports conflicts too (single pass)
+
+The critic only runs in the agentic graph, which is off by default. So on the
+pipeline that actually ships, a contradiction could never hold an answer. The
+answering model often *wrote* "the sources disagree" in its prose, but the gate
+can't read prose. The answer schema now has a `conflicts` field in the same shape
+as the critic's, and the gate reads both, deduplicated. It costs no extra call.
+
+Measured on the same twelve cases, at temperature 0, 6 trials each:
+
+| | conflicts caught | false alarms |
+|---|---|---|
+| **answerer (single pass)** | **30/36 (83.3%)** | **0/36** |
+| critic (agent only) | 28/36 scored as caught; 28/34 of the calls that ran | 0/36 |
+
+```
+       critic  expect    conf (min/median)   graded  answerer  case
+     6/6       conflict          0.40/0.40      6/6       6/6  payment term
+     6/6       conflict          0.20/0.40      6/6       6/6  governing law
+     6/6       conflict          0.40/0.40      6/6       6/6  leave entitlement
+     6/6       conflict          0.20/0.20      6/6       6/6  commencement date
+  !  4/6       conflict          0.30/0.35      6/6       6/6  insurance level
+  !  0/6       conflict          0.40/0.40      6/6       0/6  liability cap
+     0/6       none              1.00/1.00        -       0/6  payment vs notice
+     0/6       none              0.90/0.90        -       0/6  cap and carve-out
+     0/6       none              1.00/1.00        -       0/6  leave pro rata
+     0/6       none              1.00/1.00        -       0/6  law and jurisdiction
+     0/6       none              1.00/1.00        -       0/6  two insurance types
+     0/6       none              0.90/0.90        -       0/6  rate and deadline
+```
+
+- **The answerer matches the critic**, and raises no false alarm on any of the six
+  hard negatives. The default pipeline now holds contradictions at no extra cost.
+- **The critic's 4/6 on insurance was two connection errors, not two misses.**
+  OpenAI was unreliable during this run: one earlier attempt hung for 26 minutes,
+  which is why `LLM_TIMEOUT_SECONDS` now exists. The runner counts an unscored
+  call as "not flagged", so read the critic's row as 4/4.
+- **Both miss the liability cap case**, consistently. It's the arguable one
+  ("Notwithstanding anything else…" reads as an override as easily as a
+  contradiction). With the agent on it is still held by low critic confidence. On
+  the single pass it would be released, which is the one gap this table leaves.
+- **On the full answer eval** (26 questions), the single pass now holds 2 answers,
+  where it previously held none. One is a correct hold: TLS 1.2 in a superseded
+  policy against TLS 1.3 in the current one. The other is borderline: two
+  different vendors' contracts with different payment terms. The question didn't
+  say which contract, so a human check is defensible, but it isn't a
+  contradiction within one agreement. Answer quality stayed in its usual range
+  (faithfulness 0.869, relevancy 0.826, correctness 0.650, of which one zero was
+  a judge error on a word-for-word correct answer). The new field costs about 14%
+  more tokens per question (1,220 → 1,389), and no extra calls.
+- **Descriptions are now readable.** The models write "Source [1] says…", which
+  means nothing to a reviewer. The text is rewritten with the document and page
+  each number stood for ("contract.pdf p1 says…") before it reaches a reason.
+
 ## First finding: grading hid the conflict
 
 The first live test used a two-page PDF. Page 1 said invoices were payable in

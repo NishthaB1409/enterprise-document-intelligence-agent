@@ -94,11 +94,13 @@ The graph is orchestrated with **LangGraph**, which models the flow as a statefu
   rules read signals the pipeline already produced, so the gate adds no model
   calls and runs on the single-pass pipeline too. The queue is SQLite, so it
   survives a restart.
-- **Contradiction detection** (`AGENT_ENABLED=true`) — the critic also reports
-  retrieved sources that disagree on the point in question (a contract saying
-  thirty days and its schedule saying forty-five, for example), each resolved to
-  the two spans. It runs inside the critique call that already happens, so it
-  costs no extra call.
+- **Contradiction detection** — retrieved sources that disagree on the point in
+  question (a contract saying thirty days and its schedule saying forty-five, for
+  example) hold the answer for review, each conflict resolved to the two spans and
+  described by document and page. The answering model reports them on every
+  pipeline, as a field in the answer it already writes, so it costs no extra call.
+  With the agent on, the critic adds an independent read. Both catch 83% of the
+  eval's conflicts with no false alarms ([`eval/REVIEW.md`](eval/REVIEW.md)).
 - **Full evaluation harness** — retrieval, routing, contradiction detection, and
   end-to-end answer quality each have a runner and a written result, negative
   results included ([`eval/ANSWERS.md`](eval/ANSWERS.md)). The answer eval

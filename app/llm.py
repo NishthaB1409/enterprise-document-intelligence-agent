@@ -115,11 +115,20 @@ class OpenAILLM:
         api_key: str | None = None,
         base_url: str | None = None,
         max_tokens: int = 8000,
+        temperature: float | None = None,
+        timeout: float = 60.0,
     ) -> None:
         self._model = model
         self._api_key = api_key
         self._base_url = base_url
         self._max_tokens = max_tokens
+        # None sends no temperature at all, which is the only thing reasoning
+        # models accept. Anything else is sent as given.
+        self._temperature = temperature
+        # Per attempt. The SDK's own default is ten minutes, retried twice, so
+        # one stalled request could hold a /query open for half an hour. That
+        # happened once during an eval run before this was set.
+        self._timeout = timeout
         self._client: openai.OpenAI | None = None
         self.usage = Usage()
         # FastAPI calls one client from several worker threads, and `+=` on an
@@ -128,7 +137,9 @@ class OpenAILLM:
 
     def _ensure_client(self) -> openai.OpenAI:
         if self._client is None:
-            self._client = openai.OpenAI(api_key=self._api_key, base_url=self._base_url)
+            self._client = openai.OpenAI(
+                api_key=self._api_key, base_url=self._base_url, timeout=self._timeout
+            )
         return self._client
 
     def complete(
@@ -163,12 +174,20 @@ class OpenAILLM:
                 # The newer spelling of `max_tokens`; the only one reasoning
                 # models accept, and equivalent on the rest.
                 max_completion_tokens=budget,
+                **({} if self._temperature is None else {"temperature": self._temperature}),
             )
         except openai.AuthenticationError as exc:
             raise LLMError("OpenAI rejected the API key; check OPENAI_API_KEY in .env") from exc
         except openai.RateLimitError as exc:
             raise LLMError(
                 "OpenAI rate-limited the request, or the account is out of credit"
+            ) from exc
+        except openai.APITimeoutError as exc:
+            # A subclass of APIConnectionError, so it has to be caught first.
+            # "Could not reach" would send someone checking their network.
+            raise LLMError(
+                f"OpenAI did not respond within {self._timeout:g}s (after retries); "
+                "it may be degraded, or raise LLM_TIMEOUT_SECONDS"
             ) from exc
         except openai.APIConnectionError as exc:
             raise LLMError(f"could not reach OpenAI: {exc}") from exc
@@ -179,6 +198,13 @@ class OpenAILLM:
                 raise LLMError(
                     f"OpenAI does not recognise the model {self._model!r}, or this "
                     "account cannot access it; check ANSWER_MODEL"
+                ) from exc
+            if exc.status_code == 400 and "temperature" in str(exc):
+                # Reasoning models reject the parameter outright. Without this
+                # the 400 reads like a malformed request, not a setting.
+                raise LLMError(
+                    f"the model {self._model!r} does not accept a temperature; "
+                    "set LLM_TEMPERATURE=none in .env"
                 ) from exc
             raise LLMError(f"OpenAI returned {exc.status_code}: {exc}") from exc
 

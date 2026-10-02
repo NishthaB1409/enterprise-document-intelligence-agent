@@ -3,7 +3,7 @@
 from functools import lru_cache
 from typing import ClassVar, Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -57,6 +57,25 @@ class Settings(BaseSettings):
     # Reasoning tokens count against this too, so a tight budget truncates the
     # JSON rather than shortening the prose.
     answer_max_tokens: int = 8000
+
+    # Sampling temperature for every model call: the answer, and the graph's
+    # routing, grading, rewriting, and critique. 0 because nothing here is
+    # creative writing — a citation, a yes/no, and a confidence should come out
+    # the same for the same evidence, and an answer that changes between two
+    # identical requests is one a reviewer cannot sign off on. It also makes the
+    # evals in eval/ comparable run to run. See eval/ANSWERS.md for what changed.
+    #
+    # `none` sends no temperature at all. Reasoning models (o-series and
+    # similar) reject the parameter, so set this when pointing ANSWER_MODEL or
+    # AGENT_MODEL at one.
+    llm_temperature: float | None = Field(default=0.0, ge=0.0, le=2.0)
+
+    # How long one model request may take before it is abandoned, per attempt
+    # (the SDK retries twice). Without it the SDK waits ten minutes per attempt,
+    # so a single stalled request could hold a /query open for half an hour.
+    # Answers here are a few hundred tokens and normally take seconds; 60s
+    # leaves room for a slow day without letting a dead connection hang.
+    llm_timeout_seconds: float = Field(default=60.0, gt=0)
 
     # How many chunks an answer may draw on. Every one of them is sent to the
     # model on every query, so this trades recall against cost and latency.
@@ -161,6 +180,14 @@ class Settings(BaseSettings):
     # Paths that should never open a trace. Liveness probes fire constantly and
     # would otherwise dominate the trace volume.
     untraced_paths: tuple[str, ...] = ("/", "/health", "/health/live", "/health/ready")
+
+    @field_validator("llm_temperature", mode="before")
+    @classmethod
+    def _none_means_omit(cls, value: object) -> object:
+        # An env var cannot be None, so `none` (or an empty value) stands in.
+        if isinstance(value, str) and value.strip().lower() in {"", "none"}:
+            return None
+        return value
 
     @property
     def langfuse_configured(self) -> bool:

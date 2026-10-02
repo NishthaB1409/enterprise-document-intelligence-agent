@@ -121,3 +121,100 @@ def test_no_retrieved_chunks_means_no_call_to_the_provider():
 
     assert result.answerable is False
     assert result.claims == []
+
+
+# --- temperature ----------------------------------------------------------------
+
+
+def _capturing_llm(**kwargs):
+    """An OpenAILLM whose client records the arguments of each call."""
+    from types import SimpleNamespace
+
+    sent: list[dict] = []
+    payload = GeneratedAnswer(answer="a", claims=[], answerable=False).model_dump_json()
+
+    def create(**call):
+        sent.append(call)
+        return SimpleNamespace(
+            usage=None,
+            choices=[SimpleNamespace(
+                message=SimpleNamespace(refusal=None, content=payload), finish_reason="stop"
+            )],
+        )
+
+    llm = OpenAILLM(model="gpt-4o-mini", api_key="sk-test", **kwargs)
+    llm._client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    return llm, sent
+
+
+def test_the_configured_temperature_is_sent():
+    llm, sent = _capturing_llm(temperature=0.0)
+    _ask(llm)
+    assert sent[0]["temperature"] == 0.0
+
+
+def test_no_temperature_means_the_parameter_is_omitted():
+    """Reasoning models reject `temperature` outright, even at its default.
+    Omitting it is the only thing they accept."""
+    llm, sent = _capturing_llm(temperature=None)
+    _ask(llm)
+    assert "temperature" not in sent[0]
+
+
+def test_the_shipped_default_is_deterministic():
+    from app.config import Settings
+
+    assert Settings(_env_file=None).llm_temperature == 0.0
+
+
+@pytest.mark.parametrize("raw", ["none", "None", ""])
+def test_temperature_can_be_switched_off_from_the_environment(raw, monkeypatch):
+    from app.config import Settings
+
+    monkeypatch.setenv("LLM_TEMPERATURE", raw)
+    assert Settings(_env_file=None).llm_temperature is None
+
+
+def test_a_model_that_rejects_temperature_says_which_setting_to_change():
+    error = openai.BadRequestError(
+        "Unsupported parameter: 'temperature' is not supported with this model.",
+        response=_response(400),
+        body=None,
+    )
+    with pytest.raises(LLMError, match="LLM_TEMPERATURE=none"):
+        _ask(_openai_llm(error, model="o4-mini"))
+
+
+def test_every_client_the_service_builds_gets_the_temperature():
+    from app.config import Settings
+    from app.services import build_llm
+
+    settings = Settings(_env_file=None, openai_api_key="sk-test", llm_temperature=0.3)
+    assert build_llm(settings)._temperature == 0.3
+    assert build_llm(settings, model=settings.agent_model)._temperature == 0.3
+
+
+# --- timeout --------------------------------------------------------------------
+
+
+def test_the_client_is_built_with_the_configured_timeout():
+    """The SDK default is ten minutes per attempt, retried twice. A stalled
+    request once held an eval run for 26 minutes before this was set."""
+    llm = OpenAILLM(model="gpt-4o-mini", api_key="sk-test", timeout=12.5)
+    assert llm._ensure_client().timeout == 12.5
+
+
+def test_the_service_passes_its_timeout_setting_to_every_client():
+    from app.config import Settings
+    from app.services import build_llm
+
+    settings = Settings(_env_file=None, openai_api_key="sk-test", llm_timeout_seconds=7)
+    assert build_llm(settings)._timeout == 7
+    assert Settings(_env_file=None).llm_timeout_seconds == 60.0
+
+
+def test_a_timeout_is_reported_as_one_rather_than_as_unreachable():
+    """APITimeoutError subclasses APIConnectionError. Reported as "could not
+    reach OpenAI", it would send someone to check a network that is fine."""
+    with pytest.raises(LLMError, match="did not respond within"):
+        _ask(_openai_llm(openai.APITimeoutError(request=_REQUEST)))

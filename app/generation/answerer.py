@@ -42,6 +42,22 @@ class Claim(BaseModel):
     sources: list[int] = Field(default_factory=list)
 
 
+class SourceConflict(BaseModel):
+    """Two or more sources stating the same thing differently.
+
+    Defined here rather than with the critic because two things report it: the
+    answerer, which is the only one present on the default single-pass
+    pipeline, and the critic, when the agentic graph runs.
+    """
+
+    sources: list[int] = Field(
+        description="The 1-based numbers of the sources that disagree — at least two."
+    )
+    description: str = Field(
+        description="What they disagree about, quoting each source's version."
+    )
+
+
 class GeneratedAnswer(BaseModel):
     answer: str
     claims: list[Claim] = Field(default_factory=list)
@@ -49,6 +65,11 @@ class GeneratedAnswer(BaseModel):
     # "the documents don't say" is distinguishable from "the model forgot to
     # cite". They call for different follow-ups.
     answerable: bool
+    # Sources that contradict each other. The prompt has always asked the model
+    # to say so in prose, but prose is something a reader may notice and the
+    # review gate cannot. This is the same observation as a field the gate can
+    # act on, at no extra call.
+    conflicts: list[SourceConflict] = Field(default_factory=list)
 
 
 # Written by hand rather than derived from the Pydantic model: the structured
@@ -95,8 +116,31 @@ ANSWER_SCHEMA: dict[str, Any] = {
             "type": "boolean",
             "description": "Whether the sources actually contain the answer.",
         },
+        "conflicts": {
+            "type": "array",
+            "description": (
+                "Every place two or more sources state the same term differently. "
+                "Empty when the sources agree."
+            ),
+            "items": {
+                "type": "object",
+                "properties": {
+                    "sources": {
+                        "type": "array",
+                        "description": "The numbers of the sources that disagree; at least two.",
+                        "items": {"type": "integer"},
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "What they disagree about, quoting each source's version.",
+                    },
+                },
+                "required": ["sources", "description"],
+                "additionalProperties": False,
+            },
+        },
     },
-    "required": ["answer", "claims", "answerable"],
+    "required": ["answer", "claims", "answerable", "conflicts"],
     "additionalProperties": False,
 }
 
@@ -124,7 +168,12 @@ a failure — a reviewer can go find the right document. An answer that fills th
 gap by inference is worse than no answer.
 
 When the sources disagree with each other, say so and cite each side. Do not \
-silently pick one.\
+silently pick one. Also list each disagreement under `conflicts`, with the \
+numbers of the sources involved: that list is what routes the answer to a human \
+reviewer. Only the same term stated differently is a conflict — a thirty-day \
+payment term and a ninety-day notice period are two terms, and an exception or \
+a pro-rata rule refines a term rather than contradicting it. Leave `conflicts` \
+empty when the sources agree.\
 """
 
 NO_EVIDENCE = "No indexed document contains anything relevant to this question."

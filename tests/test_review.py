@@ -17,7 +17,7 @@ from app.graph.nodes import Critique, SourceConflict
 from app.graph.pipeline import PipelineResult
 from app.ingest.chunking import Chunk
 from app.main import create_app
-from app.review.contradictions import resolve_conflicts
+from app.review.contradictions import collect_contradictions, readable, resolve_conflicts
 from app.review.gate import review_reasons
 from app.review.store import ReviewAlreadyDecided, ReviewNotFound, ReviewStore
 from app.vectorstore.store import ScoredChunk
@@ -310,3 +310,93 @@ def test_a_clean_critique_is_released_with_its_verdict(agent_client):
     assert response.status_code == 200
     assert response.json()["critique"]["confidence"] == 0.9
     assert response.json()["contradictions"] == []
+
+
+# --- conflicts from the answerer, and readable descriptions ------------------------
+
+
+class TestReadableDescriptions:
+    def test_source_numbers_become_document_and_page(self):
+        text = "Source [1] says thirty days, while source [2] says forty-five."
+        assert readable(text, CHUNKS) == (
+            "contract.pdf p1 says thirty days, while schedule-b.pdf p2 says forty-five."
+        )
+
+    def test_bare_and_plural_references_are_rewritten_too(self):
+        assert readable("Sources [1] and [2] disagree.", CHUNKS) == (
+            "contract.pdf p1 and schedule-b.pdf p2 disagree."
+        )
+
+    def test_a_number_that_was_never_offered_is_left_alone(self):
+        """Guessing which document a hallucinated [9] meant would hand a reviewer
+        a citation the model never made."""
+        assert readable("Source [9] disagrees.", CHUNKS) == "Source [9] disagrees."
+
+    def test_resolved_contradictions_carry_the_readable_text(self):
+        (contradiction,) = resolve_conflicts(
+            [SourceConflict(sources=[1, 2], description="[1] says 30 days; [2] says 45.")],
+            CHUNKS,
+        )
+        assert contradiction.description == (
+            "contract.pdf p1 says 30 days; schedule-b.pdf p2 says 45."
+        )
+
+
+def _answer_with_conflict(description: str = "30 vs 45 days") -> GeneratedAnswer:
+    return CITED.model_copy(
+        update={"conflicts": [SourceConflict(sources=[1, 2], description=description)]}
+    )
+
+
+class TestCollectContradictions:
+    def test_the_answerer_alone_can_report_one(self):
+        """The single-pass pipeline has no critic. Before, a conflict the answer
+        described in prose could never hold it."""
+        (contradiction,) = collect_contradictions(_answer_with_conflict(), [], CHUNKS)
+        assert [c.chunk_id for c in contradiction.citations] == ["chunk-0", "chunk-1"]
+
+    def test_the_same_pair_reported_twice_is_one_contradiction(self):
+        critic = [SourceConflict(sources=[2, 1], description="critic's words")]
+
+        (contradiction,) = collect_contradictions(
+            _answer_with_conflict("answerer's words"), critic, CHUNKS
+        )
+
+        # The critic is the independent read, so its description is kept.
+        assert contradiction.description == "critic's words"
+
+    def test_different_pairs_are_both_kept(self):
+        third = _chunk(2, "Fees are due on receipt.", "order-form.pdf")
+        critic = [SourceConflict(sources=[1, 3], description="30 days vs on receipt")]
+
+        found = collect_contradictions(_answer_with_conflict(), critic, CHUNKS + [third])
+
+        assert len(found) == 2
+
+
+def test_the_answer_schema_requires_a_conflicts_list():
+    """Required in the strict schema, so "none" is something the model said
+    rather than a field it skipped."""
+    from app.generation.answerer import ANSWER_SCHEMA
+
+    assert "conflicts" in ANSWER_SCHEMA["required"]
+    assert "conflicts" in ANSWER_SCHEMA["properties"]
+
+
+def test_a_single_pass_answer_reporting_a_conflict_is_held(agent_client):
+    """The end-to-end change: no critic anywhere, and the answer is still held,
+    with a reason a reviewer can read without knowing the source numbering."""
+    test_client = agent_client(
+        PipelineResult(
+            answer=_answer_with_conflict("Source [1] says 30 days; source [2] says 45."),
+            chunks=CHUNKS,
+            steps=["retrieve", "generate"],
+        )
+    )
+
+    response = test_client.post("/api/v1/query", json={"question": "When are invoices due?"})
+
+    assert response.status_code == 202
+    assert response.json()["review"]["reasons"] == [
+        "sources disagree: contract.pdf p1 says 30 days; schedule-b.pdf p2 says 45."
+    ]

@@ -188,4 +188,6 @@ def build_llm(settings: Settings, *, model: str | None = None) -> StructuredLLM:
         api_key=settings.openai_api_key,
         base_url=settings.openai_base_url,
         max_tokens=settings.answer_max_tokens,
+        temperature=settings.llm_temperature,
+        timeout=settings.llm_timeout_seconds,
     )

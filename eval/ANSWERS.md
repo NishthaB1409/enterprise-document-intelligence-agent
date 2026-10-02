@@ -27,7 +27,8 @@ are worth having in some deployments, but they aren't answer quality.
 - Both pipelines are built by `app.services.build_pipeline`, the same code the
   service runs, and scored on identical questions over the same index.
 - Answer model, agent model, and judge are all `gpt-4o-mini`.
-- One sample per question per run, at the API's default temperature.
+- One sample per question per run. The runs in "Results" used the API's default
+  temperature; see "Temperature 0" for the runs after it was set to 0.
 
 ## Results
 
@@ -142,6 +143,45 @@ year, and faithfulness 0.0 is fair. "The current policy" (an inference, not
 stated) was scored just as harshly. Single-question faithfulness is noisy, so
 read the averages, not individual rows.
 
+## Temperature 0
+
+Every model call ran at the API's default temperature (1.0) until this change.
+`LLM_TEMPERATURE` now defaults to 0, and this is what was measured before
+switching the default: two full runs of both pipelines at 0, compared with the
+earlier runs at the default.
+
+**Stability: much better.** The same 26 questions, asked twice:
+
+| | identical answer text across two runs |
+|---|---|
+| single pass, default temperature | 2 / 26 |
+| single pass, temperature 0 | **15 / 26** |
+| agent, temperature 0 | 21 / 26 |
+
+That's the reason for the change. A reviewer who approves an answer should get
+that answer again for the same question, and before this they almost never did.
+OpenAI doesn't guarantee identical output even at 0, so it isn't 26 / 26.
+
+**Quality: no measured change.**
+
+| single pass | default temperature (3 runs) | temperature 0 (2 runs) |
+|---|---|---|
+| faithfulness | 0.805 – 0.868 | 0.787 – 0.843 |
+| answer relevancy | 0.766 – 0.808 | 0.774 – 0.778 |
+| answer correctness | 0.675 – 0.750 | 0.675 – 0.725 |
+| context precision / recall | 0.702 / 0.850 | 0.702 / 0.850 |
+
+**The eval noise barely moved, which was the wrong prediction.** I expected the
+scores to tighten. Faithfulness still moves about 0.05 between runs at
+temperature 0. Some answers still differ (11 of 26), and the judge has its own
+variance. So most of the eval's noise isn't coming from generation temperature,
+and differences of a question or two between pipelines remain noise.
+
+Also measured at temperature 0: routing stayed at 120/120, and the critic's
+contradiction detection stayed at 30/36 with 0 false alarms. Its confidence got
+more decisive: clean cases now score at least 0.90 (previously 0.80), and every
+case gives the same confidence on all six trials.
+
 ## The CI gate
 
 `--gate` exits non-zero if a pipeline falls below any **floor** in
@@ -169,9 +209,6 @@ attach to that trace.
   to flatter it; `--judge-model` exists to check the ranking holds under another.
 - **Synthetic corpus.** Written to contain hard cases (distractors, a superseded
   policy), so it's harder than some real corpora and easier than others.
-- **Temperature is unpinned.** Every call runs at the API default, which is part
-  of the run-to-run variance above. Pinning it is cheap and would tighten every
-  number here. It's a product change, so it's left for its own measured commit.
 - **The agent may earn its keep elsewhere.** On a corpus where dense retrieval
   misses more, grading and rewriting have more to fix. Re-run this against your
   own documents before deciding either way.

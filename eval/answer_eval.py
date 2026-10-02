@@ -64,9 +64,10 @@ supported by that passage" is not a string match. The judge is `AGENT_MODEL` by
 default. That is the same family as the generator, which is known to flatter it;
 `--judge-model` is there to check the ranking holds under a different judge.
 
-What this cannot tell you. Twenty-six questions, one sample each, at the model's
-default temperature: a difference of one or two questions between pipelines is
-inside the noise, and should be read as "no measured difference". The corpus is
+What this cannot tell you. Twenty-six questions, one sample each: a difference
+of one or two questions between pipelines is inside the noise, and should be
+read as "no measured difference". Temperature 0 did not change that much: the
+judge varies too, and some answers still differ between runs. The corpus is
 synthetic and small. See `eval/ANSWERS.md` for the numbers and the caveats.
 """
 
@@ -96,9 +97,9 @@ from app.ingest.embedding import FastEmbedEmbedder
 from app.llm import OpenAILLM
 from app.observability.langfuse_client import init_langfuse
 from app.retrieval.retriever import DenseRetriever
-from app.review.contradictions import resolve_conflicts
+from app.review.contradictions import collect_contradictions
 from app.review.gate import review_reasons
-from app.services import build_pipeline
+from app.services import build_llm, build_pipeline
 from app.vectorstore.qdrant_store import QdrantVectorStore
 from eval.metrics import context_precision, context_recall, relevance
 from eval.questions import QUESTIONS, UNANSWERABLE
@@ -220,12 +221,11 @@ def build_runs(settings: Settings, retriever, names: Sequence[str]) -> list[Pipe
 
 
 def _client(settings: Settings, model: str) -> OpenAILLM:
-    return OpenAILLM(
-        model=model,
-        api_key=settings.openai_api_key,
-        base_url=settings.openai_base_url,
-        max_tokens=settings.answer_max_tokens,
-    )
+    # Through the service's own factory, so every setting that shapes a model
+    # call — temperature included — is the one that ships.
+    client = build_llm(settings, model=model)
+    assert isinstance(client, OpenAILLM)  # the eval reads its token usage
+    return client
 
 
 def run_one(run: PipelineRun, sample: Sample, min_confidence: float) -> Sample:
@@ -266,8 +266,9 @@ def _answer(run: PipelineRun, sample: Sample, min_confidence: float) -> None:
         return
 
     grounded = ground(result.answer, result.chunks)
-    contradictions = resolve_conflicts(
-        result.critique.conflicts if result.critique else [], result.chunks
+    # From the answerer on every pipeline, and the critic when the graph ran.
+    contradictions = collect_contradictions(
+        result.answer, result.critique.conflicts if result.critique else [], result.chunks
     )
     sample.answer = grounded.answer
     sample.answered = grounded.answerable
@@ -697,6 +698,7 @@ def _write_results(path: Path, settings, judge_model, cases, summaries, costs, s
                     "agent_model": settings.agent_model,
                     "judge_model": judge_model,
                     "top_k": TOP_K,
+                    "llm_temperature": settings.llm_temperature,
                     "review_min_confidence": settings.review_min_confidence,
                     "questions": len(cases),
                 },

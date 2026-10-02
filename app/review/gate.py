@@ -2,10 +2,10 @@
 
 The rules are deterministic and cost nothing: every signal they read was already
 produced on the way to the answer. Grounding produced `unsupported_claims`; the
-critic, when the agentic graph runs it, produced a confidence, a verdict, and
-any conflicts between sources. The gate adds no model call of its own, which is
-why it can run on the single-pass pipeline too — there it simply has fewer
-signals to read.
+answerer reported any conflicts between sources; and the critic, when the
+agentic graph runs it, produced a confidence, a verdict, and its own read of the
+conflicts. The gate adds no model call of its own, which is why it runs on the
+single-pass pipeline too — there it has every signal except the critic's.
 
 What holds an answer, and why each one:
 

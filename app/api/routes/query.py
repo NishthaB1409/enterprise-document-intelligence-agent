@@ -24,7 +24,7 @@ from app.generation.citations import ground
 from app.graph.pipeline import describe
 from app.llm import LLMError
 from app.observability.trace_io import publish_trace_io
-from app.review.contradictions import resolve_conflicts
+from app.review.contradictions import collect_contradictions
 from app.review.gate import review_reasons
 
 logger = logging.getLogger(__name__)
@@ -100,8 +100,8 @@ class QueryResponse(BaseModel):
     claims: list[Claim]
     citations: list[Citation]
     unsupported_claims: list[str]
-    # Places the retrieved sources contradict each other. Found by the critic,
-    # so always empty when the agentic graph is off.
+    # Places the retrieved sources contradict each other, as reported by the
+    # answerer (every pipeline) and the critic (agentic graph only).
     contradictions: list[Contradiction] = Field(default_factory=list)
     # Null when the answer was not reviewed — either the agentic graph is off,
     # or its critic could not be reached. Not the same as reviewed and clean.
@@ -152,8 +152,9 @@ async def query(
     # source numbers are positions in this list, so grounding has to use it.
     grounded = ground(result.answer, result.chunks)
     # Resolved against the same list the critic was shown, for the same reason.
-    contradictions = resolve_conflicts(
-        result.critique.conflicts if result.critique else [], result.chunks
+    # From the answerer on every pipeline, and the critic when the graph ran.
+    contradictions = collect_contradictions(
+        result.answer, result.critique.conflicts if result.critique else [], result.chunks
     )
     reasons = review_reasons(
         grounded,

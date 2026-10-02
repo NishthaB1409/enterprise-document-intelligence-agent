@@ -98,11 +98,8 @@ test than any list written from an armchair.
 
 Two things also remain open:
 
-- **Temperature is unpinned.** `app/llm.py` does not set it, so classification
-  runs at the API default. Fifteen of sixteen cases were unanimous anyway, so it
-  is not the cause of what was found here — but a classifier at temperature 1.0
-  is a latent source of exactly this failure, and pinning it to 0 would make the
-  cheap nodes reproducible.
+- **Temperature was unpinned.** Fixed since: `LLM_TEMPERATURE` defaults to 0,
+  and routing measured 120/120 at that setting (eval/ANSWERS.md, "Temperature 0").
 - **The refusal is still silent.** Even a correct refusal returns no signal that
   a routing decision was made and could be revisited. Phase 4's human-review
   gate is where that becomes actionable.

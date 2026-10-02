@@ -45,6 +45,9 @@ from collections.abc import Sequence
 from langfuse import observe
 from pydantic import BaseModel, Field
 
+# Shared with the answerer, which reports conflicts on the single-pass pipeline.
+# Re-exported here so `from app.graph.nodes import SourceConflict` keeps working.
+from app.generation.answerer import SourceConflict
 from app.llm import LLMError, StructuredLLM, schema_of
 from app.vectorstore.store import ScoredChunk
 
@@ -291,15 +294,6 @@ class Rewriter:
 
 # --------------------------------------------------------------------------
 # Critique
-
-
-class SourceConflict(BaseModel):
-    sources: list[int] = Field(
-        description="The 1-based numbers of the sources that disagree — at least two."
-    )
-    description: str = Field(
-        description="What they disagree about, quoting each source's version."
-    )
 
 
 class Critique(BaseModel):

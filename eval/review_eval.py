@@ -47,6 +47,7 @@ import statistics
 from dataclasses import dataclass
 
 from app.config import get_settings
+from app.generation.answerer import LLMAnswerer
 from app.graph.nodes import Critic, Grader
 from app.ingest.chunking import Chunk
 from app.review.contradictions import resolve_conflicts
@@ -231,12 +232,18 @@ def main() -> None:
     llm = build_llm(settings, model=settings.agent_model)
     critic = Critic(llm)
     grader = Grader(llm)
+    # The single-pass pipeline has no critic: there the answerer's own
+    # `conflicts` field is the only signal, so it is measured on the same cases.
+    answerer = LLMAnswerer(build_llm(settings), max_tokens=settings.answer_max_tokens)
     print(
-        f"model: {settings.agent_model}  cases: {len(CASES)}  trials each: {args.trials}\n"
-        f"{'':4}{'flagged':>9}  {'expect':8}{'conf (min/median)':>19}  {'graded':>7}  case"
+        f"critic/grader: {settings.agent_model}  answerer: {settings.answer_model}  "
+        f"cases: {len(CASES)}  trials each: {args.trials}\n"
+        f"{'':4}{'critic':>9}  {'expect':8}{'conf (min/median)':>19}  {'graded':>7}"
+        f"  {'answerer':>8}  case"
     )
 
     detected = alarms = failures = kept_both = 0
+    answerer_detected = answerer_alarms = 0
     all_confidences: dict[bool, list[float]] = {True: [], False: []}
     for case in CASES:
         chunks = _chunks(case)
@@ -271,18 +278,34 @@ def main() -> None:
             kept_both += survived
             graded = f"{survived}/{args.trials}"
 
+        # The answerer sees the sources directly (the single pass has no
+        # grading) and is scored after resolution, like the critic.
+        answered = sum(
+            bool(resolve_conflicts(answerer.answer(case.question, chunks).conflicts, chunks))
+            for _ in range(args.trials)
+        )
+        if case.conflict:
+            answerer_detected += answered
+        else:
+            answerer_alarms += answered
+
         correct = flagged if case.conflict else args.trials - flagged
         # A conflict case is only clean if the critic caught it *and* grading
         # let it through: in the pipeline both have to hold.
         correct = min(correct, survived)
-        mark = "    " if correct == args.trials else "  ! "
+        answerer_correct = answered if case.conflict else args.trials - answered
+        mark = "    " if correct == answerer_correct == args.trials else "  ! "
         conf = (
             f"{min(confidences):.2f}/{statistics.median(confidences):.2f}"
             if confidences
             else "-"
         )
         expect = "conflict" if case.conflict else "none"
-        print(f"{mark}{flagged:>2}/{args.trials:<6}  {expect:8}{conf:>19}  {graded:>7}  {case.name}")
+        answerer_col = f"{answered}/{args.trials}"
+        print(
+            f"{mark}{flagged:>2}/{args.trials:<6}  {expect:8}{conf:>19}  {graded:>7}"
+            f"  {answerer_col:>8}  {case.name}"
+        )
 
     positives = sum(c.conflict for c in CASES) * args.trials
     negatives = sum(not c.conflict for c in CASES) * args.trials
@@ -291,6 +314,10 @@ def main() -> None:
         f"\nfalse alarms:       {alarms}/{negatives} ({alarms / negatives:.1%})"
         f"\ngrader kept both sides of a conflict: {kept_both}/{positives}"
         f" ({kept_both / positives:.1%})"
+        f"\n\nanswerer (single pass), conflicts detected: {answerer_detected}/{positives}"
+        f" ({answerer_detected / positives:.1%})"
+        f"\nanswerer (single pass), false alarms:       {answerer_alarms}/{negatives}"
+        f" ({answerer_alarms / negatives:.1%})"
     )
     for conflict, label in ((True, "conflict cases"), (False, "clean cases")):
         values = all_confidences[conflict]
