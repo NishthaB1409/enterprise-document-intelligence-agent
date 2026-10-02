@@ -120,6 +120,7 @@ def spans(fake_langfuse: FakeLangfuseServer):
     """Clears captured spans before a test, and flushes the exporter after the
     request so assertions run against everything the SDK actually sent."""
     fake_langfuse.collector.spans.clear()
+    fake_langfuse.collector.scores.clear()
     yield fake_langfuse.collector
 
 

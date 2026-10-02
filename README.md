@@ -151,13 +151,36 @@ either model re-indexes nothing and costs nothing.
 ### Run
 
 ```bash
-git clone <your-repo-url>
-cd enterprise-doc-agent
-cp .env.example .env        # add your OPENAI_API_KEY
+git clone https://github.com/NishthaB1409/enterprise-document-intelligence-agent.git
+cd enterprise-document-intelligence-agent
+cp .env.example .env        # PowerShell: Copy-Item .env.example .env — then add your OPENAI_API_KEY
 docker compose up --build
 ```
 
-This starts Qdrant and the FastAPI app. Open `http://localhost:8000` — it redirects to the interactive docs at `/docs`, where you can upload a PDF and ask questions without leaving the browser. The Qdrant dashboard is at `http://localhost:6333/dashboard`.
+This starts Qdrant (pinned to the version the client library is locked against)
+and the FastAPI app, which runs as a non-root user and reports its own health:
+`docker compose ps` shows `healthy` once it is serving. Indexed documents, the
+embedding model, and the review queue each live on a named volume, so
+`docker compose down` and back up loses nothing. `docker compose down -v` is the
+clean slate. Use it once if you ran an older version of this stack, whose
+volumes were created by root and are not writable by the current image.
+
+The first upload is slow: it downloads the ~130MB embedding model into its volume.
+Everything after that, restarts included, uses the cached copy.
+
+If that first download is interrupted (a dropped connection, Ctrl+C), the cache
+can be left holding a model folder with no model in it, and every upload then
+fails with `NO_SUCHFILE ... model_optimized.onnx`. The downloader trusts the
+folder and never retries. Clear the cache volume, and the next upload downloads
+it cleanly:
+
+```bash
+docker compose down
+docker volume rm enterprisedocument-intelligenceagent_embedding-cache
+docker compose up -d
+```
+
+Open `http://localhost:8000` — it redirects to the interactive docs at `/docs`, where you can upload a PDF and ask questions without leaving the browser. The Qdrant dashboard is at `http://localhost:6333/dashboard`.
 
 > **On Windows PowerShell**, `curl` is an alias for `Invoke-WebRequest` and rejects the flags below with *"A parameter cannot be found that matches parameter name 'F'"*. Use `curl.exe` — the real one, in `System32` — or the PowerShell form shown after each example.
 
@@ -298,6 +321,16 @@ uv run pytest
 ```
 
 The suite needs no Qdrant, no API key, and no network: `tests/fakes.py` supplies a hashed bag-of-words embedder, an in-memory vector store, and a scripted model, and the app is built with those. Everything above them — parsing, chunking, the pipeline, retrieval, citation grounding, both routes — is the code that runs in production.
+
+Two GitHub Actions workflows:
+
+| workflow | runs | needs | cost |
+|---|---|---|---|
+| [`tests`](.github/workflows/tests.yml) | every push to `main` and every pull request | nothing | free |
+| [`answer quality`](.github/workflows/answer-quality.yml) | nightly, and on demand from the Actions tab | `OPENAI_API_KEY` repository secret | ~$0.05 per run |
+
+The second is the regression gate from [`eval/ANSWERS.md`](eval/ANSWERS.md). Run
+it by hand before merging anything that touches a prompt, retrieval, or chunking.
 
 ---
 
@@ -441,8 +474,8 @@ Every layer below the API sits behind a Protocol (`Embedder`, `VectorStore`, `An
 - [x] Agentic graph: route → grade → rewrite → generate → critique (opt-in; [routing measured](eval/ROUTING.md), [end to end: no lift](eval/ANSWERS.md))
 - [x] Human-in-the-loop gate + contradiction detection ([measured: 30/36 detected, 0/36 false alarms](eval/REVIEW.md))
 - [x] Answer-quality eval with Ragas + CI regression gate ([measured: agent does not beat the single pass](eval/ANSWERS.md))
-- [ ] Attach eval scores to Langfuse traces; run the gate in CI
-- [ ] One-command Docker packaging
+- [x] Eval scores attached to Langfuse traces; tests and the quality gate in GitHub Actions
+- [x] One-command Docker packaging (pinned Qdrant, non-root, health-checked)
 
 ---
 

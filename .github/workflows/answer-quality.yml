@@ -1,0 +1,81 @@
+# The answer-quality regression gate: `python -m eval.answer_eval --gate`.
+#
+# Not on every push, because it calls the model. The single-pass run is about
+# 26 pipeline calls plus 140 judge calls on gpt-4o-mini, roughly $0.05. So it
+# runs nightly, and on demand from the Actions tab before merging anything that
+# touches a prompt, retrieval, or chunking.
+#
+# Setup: add OPENAI_API_KEY under Settings → Secrets and variables → Actions.
+# Without it the job says so and stops, rather than failing in a way that looks
+# like a quality regression.
+#
+# The gate checks regression floors, not the README's targets; see
+# eval/ANSWERS.md for why. A failure means a change made answers measurably
+# worse than the recorded baseline.
+
+name: answer quality
+
+on:
+  schedule:
+    - cron: "0 3 * * *" # 03:00 UTC daily
+  workflow_dispatch:
+    inputs:
+      pipelines:
+        description: "simple, agent, or simple,agent (agent costs ~4x)"
+        default: simple
+        required: true
+
+permissions:
+  contents: read
+
+# One run at a time: two overlapping gate runs only double the bill.
+concurrency:
+  group: answer-quality
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      EMBEDDING_CACHE_DIR: ${{ github.workspace }}/.cache/fastembed
+    steps:
+      - name: Require the API key
+        if: env.OPENAI_API_KEY == ''
+        run: |
+          echo "::error::OPENAI_API_KEY is not set as a repository secret; the gate calls the model and cannot run without it."
+          exit 1
+
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - run: uv sync --frozen --extra eval
+
+      # The embedding model is ~130MB. Cached between runs so the nightly job
+      # does not download it every night.
+      - uses: actions/cache@v4
+        with:
+          path: .cache/fastembed
+          key: fastembed-${{ hashFiles('app/config.py') }}
+
+      - name: Run the gate
+        run: >
+          uv run python -m eval.answer_eval
+          --pipelines "${{ inputs.pipelines || 'simple' }}"
+          --gate --yes
+          --json answer_results.json
+
+      # The per-question rows, for reading why a gate failed. Kept as an
+      # artifact rather than committed: the committed record is the run
+      # eval/ANSWERS.md describes, and CI must not rewrite it.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: answer-results
+          path: answer_results.json
+          if-no-files-found: ignore

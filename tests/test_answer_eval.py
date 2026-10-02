@@ -23,8 +23,12 @@ from eval.answer_eval import (
     build_runs,
     gate_failures,
     metrics_for,
+    PipelineRun,
+    publish_scores,
     questions,
     reference_recall,
+    run_one,
+    scores_for,
     summarise,
 )
 from eval.metrics import context_precision, context_recall
@@ -222,3 +226,78 @@ def test_usage_is_counted_from_what_the_api_reports():
 
     assert (llm.usage.calls, llm.usage.prompt_tokens, llm.usage.completion_tokens) == (2, 240, 60)
     assert llm.usage.total_tokens == 300
+
+
+# --- Langfuse ------------------------------------------------------------------------
+
+
+def test_scores_for_a_golden_answer():
+    sample = _sample(
+        answered=True, judgements=[False, True], faithfulness=0.8,
+        answer_relevancy=0.9, answer_correctness=1.0,
+    )
+    assert scores_for(sample) == {
+        "faithfulness": 0.8,
+        "answer_relevancy": 0.9,
+        "answer_correctness": 1.0,
+        "context_precision": 0.5,
+        "context_recall": 1.0,
+        "held_for_review": 0.0,
+    }
+
+
+def test_unscored_metrics_are_left_off_rather_than_sent_as_zero():
+    sample = _sample(answered=False, judgements=[True], answer_relevancy=0.0)
+    assert "faithfulness" not in scores_for(sample)
+    assert scores_for(sample)["answer_relevancy"] == 0.0
+
+
+def test_an_unanswerable_question_gets_no_context_scores():
+    sample = _sample(kind="unanswerable", gold_span=None, answered=False)
+    assert scores_for(sample) == {"held_for_review": 0.0}
+
+
+def test_a_failed_run_sends_no_scores():
+    assert scores_for(_sample(error="boom")) == {}
+
+
+def test_each_eval_run_is_traced_and_its_scores_land_on_that_trace(client, spans, flush):
+    """The point of the integration: a score in Langfuse opens onto the run that
+    earned it. Asserted against what the SDK actually sent to the fake server,
+    so a score that reaches Langfuse with the wrong trace id fails here."""
+    from app.generation.answerer import GeneratedAnswer
+    from app.graph.pipeline import PipelineResult
+    from app.ingest.chunking import Chunk
+    from app.vectorstore.store import ScoredChunk
+
+    text = "Invoices are payable within thirty (30) days."
+    chunk = ScoredChunk(
+        chunk=Chunk(id="c1", doc_id="d", index=0, page=1, text=text, char_start=0,
+                    char_end=len(text)),
+        source="msa.pdf",
+        score=0.9,
+    )
+    answer = GeneratedAnswer.model_validate(
+        {"answer": "Thirty days.", "answerable": True,
+         "claims": [{"text": "Thirty days.", "sources": [1]}]}
+    )
+
+    class _Pipeline:
+        def run(self, question, top_k=None):
+            return PipelineResult(answer=answer, chunks=[chunk], steps=["retrieve", "generate"])
+
+    run = PipelineRun("simple", _Pipeline(), answer_llm=None, agent_llm=None)
+    sample = run_one(run, _sample(gold_span="payable within thirty (30) days"), 0.7)
+    sample.faithfulness = 1.0
+
+    sent = publish_scores([sample])
+    flush()
+
+    span = spans.by_name("answer-eval/simple")
+    assert sample.trace_id == span.trace_id
+    received = {s["name"]: s for s in spans.scores}
+    assert sent == len(received) == 4  # faithfulness, two context scores, held
+    assert all(s["traceId"] == span.trace_id for s in received.values())
+    assert received["faithfulness"]["value"] == 1.0
+    assert received["context_recall"]["value"] == 1.0
+    assert received["held_for_review"]["dataType"] == "BOOLEAN"

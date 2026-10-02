@@ -151,9 +151,16 @@ misses three of those four (faithfulness, relevancy, precision), and a gate that
 fails every build gets switched off rather than fixed. Raise a floor when a
 change measurably lifts the baseline.
 
-No CI workflow runs it yet. It needs `OPENAI_API_KEY` as a repository secret and
-costs roughly $0.05 per run for the single pass alone, so it suits a nightly job
-or a manual trigger better than every push.
+[`.github/workflows/answer-quality.yml`](../.github/workflows/answer-quality.yml)
+runs it nightly and on demand from the Actions tab, not on every push. It costs
+roughly $0.05 per single-pass run. It needs `OPENAI_API_KEY` as a repository
+secret, and says so plainly if the secret is missing rather than failing like a
+regression. Per-question results are uploaded as a build artifact, never
+committed.
+
+With `LANGFUSE_*` set, every run is also traced: each question's pipeline run
+becomes a Langfuse trace with the graph's own spans inside it, and its scores
+attach to that trace.
 
 ## What this can't tell you
 

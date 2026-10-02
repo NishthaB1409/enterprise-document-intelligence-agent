@@ -7,9 +7,10 @@
 
 services:
   qdrant:
-    # Pin this to the version you test against before anyone depends on the
-    # stack being reproducible.
-    image: qdrant/qdrant:latest
+    # Pinned to match the locked qdrant-client (1.19.x). `latest` would make
+    # the same commit start a different database next month — the opposite of
+    # a reproducible run. Bump it together with qdrant-client in uv.lock.
+    image: qdrant/qdrant:v1.19.1
     ports:
       - "6333:6333" # REST + the web dashboard at http://localhost:6333/dashboard
       - "6334:6334" # gRPC
@@ -31,6 +32,11 @@ services:
       # Inside the Compose network Qdrant is a hostname, not localhost. Set here
       # rather than in .env so the same .env works for a locally-run app.
       QDRANT_URL: http://qdrant:6333
+      # Blanked on purpose. A .env set up for running the app outside Docker
+      # usually has QDRANT_PATH (embedded mode), and it takes precedence over
+      # QDRANT_URL — so without this the container would quietly run its own
+      # embedded database and ignore the Qdrant service beside it.
+      QDRANT_PATH: ""
       # On a volume: a pending review lost to a container restart is a
       # requester told "a human will look at this" and then forgotten.
       REVIEW_DB_PATH: /srv/data/reviews.sqlite3

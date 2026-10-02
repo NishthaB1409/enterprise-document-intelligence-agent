@@ -52,6 +52,12 @@ What is measured, and by what:
 
     cost                Calls and tokens, read off each client's `Usage`.
 
+With LANGFUSE_* configured, every question's pipeline run is traced, with the
+graph's own route, grade, and critique spans inside it, and each score above is
+attached to that trace. A low faithfulness score then opens onto the exact run
+that earned it, rather than a row in a JSON file. Without the keys, tracing is a
+no-op and nothing changes.
+
 Why the judge is a model at all, when two of the metrics are computed exactly:
 there is no gold answer text, only gold passages, and "is this sentence
 supported by that passage" is not a string match. The judge is `AGENT_MODEL` by
@@ -88,6 +94,7 @@ from app.generation.citations import ground
 from app.graph.pipeline import QueryPipeline
 from app.ingest.embedding import FastEmbedEmbedder
 from app.llm import OpenAILLM
+from app.observability.langfuse_client import init_langfuse
 from app.retrieval.retriever import DenseRetriever
 from app.review.contradictions import resolve_conflicts
 from app.review.gate import review_reasons
@@ -154,6 +161,8 @@ class Sample:
     reasons: list[str] = field(default_factory=list)
     steps: list[str] = field(default_factory=list)
     error: str | None = None
+    # The Langfuse trace this run was recorded under; scores attach to it.
+    trace_id: str | None = None
     faithfulness: float | None = None
     answer_relevancy: float | None = None
     answer_correctness: float | None = None
@@ -226,11 +235,35 @@ def run_one(run: PipelineRun, sample: Sample, min_confidence: float) -> Sample:
     contradiction resolution, the review gate — so `held` is what the service
     would actually have done.
     """
+    from langfuse import get_client
+
+    with get_client().start_as_current_observation(
+        name=f"answer-eval/{run.name}",
+        as_type="span",
+        input={"question": sample.question, "kind": sample.kind},
+        metadata={"pipeline": run.name, "gold_span": sample.gold_span},
+    ) as span:
+        sample.trace_id = span.trace_id
+        _answer(run, sample, min_confidence)
+        span.update(
+            output={
+                "answer": sample.answer,
+                "answered": sample.answered,
+                "held": sample.held,
+                "reasons": sample.reasons,
+                "path": " -> ".join(sample.steps),
+                "error": sample.error,
+            }
+        )
+    return sample
+
+
+def _answer(run: PipelineRun, sample: Sample, min_confidence: float) -> None:
     try:
         result = run.pipeline.run(sample.question)
     except Exception as exc:  # noqa: BLE001 — one failed question must not end the run
         sample.error = f"{type(exc).__name__}: {exc}"
-        return sample
+        return
 
     grounded = ground(result.answer, result.chunks)
     contradictions = resolve_conflicts(
@@ -250,7 +283,6 @@ def run_one(run: PipelineRun, sample: Sample, min_confidence: float) -> Sample:
     )
     sample.held = bool(sample.reasons)
     sample.steps = result.steps
-    return sample
 
 
 def questions() -> list[tuple[str, str, str | None]]:
@@ -389,6 +421,55 @@ async def judge(
     return failures
 
 
+# --- publishing ---------------------------------------------------------------------
+
+
+def scores_for(sample: Sample) -> dict[str, float]:
+    """Every score worth attaching to a sample's trace. Pure, so it can be tested.
+
+    Judged metrics where they were scored, the exact context metrics for golden
+    questions, and whether the review gate held the answer. Nothing for a failed
+    run: a trace with an error on it already says what happened.
+    """
+    if sample.error:
+        return {}
+    scores = {
+        metric: value
+        for metric in ("faithfulness", "answer_relevancy", "answer_correctness")
+        if (value := getattr(sample, metric)) is not None
+    }
+    if sample.answerable and sample.gold_span:
+        scores["context_precision"] = context_precision(sample.judgements)
+        scores["context_recall"] = context_recall(sample.judgements)
+    scores["held_for_review"] = 1.0 if sample.held else 0.0
+    return scores
+
+
+def publish_scores(samples: Sequence[Sample]) -> int:
+    """Attach each sample's scores to its trace. Returns how many were sent.
+
+    A no-op when Langfuse is not configured: the client discards scores the same
+    way it discards spans, so this needs no branch of its own.
+    """
+    from langfuse import get_client
+
+    client = get_client()
+    sent = 0
+    for sample in samples:
+        if sample.trace_id is None:
+            continue
+        for name, value in scores_for(sample).items():
+            client.create_score(
+                trace_id=sample.trace_id,
+                name=name,
+                value=value,
+                data_type="BOOLEAN" if name == "held_for_review" else "NUMERIC",
+            )
+            sent += 1
+    client.flush()
+    return sent
+
+
 # --- summarising ----------------------------------------------------------------
 
 
@@ -517,6 +598,9 @@ def main() -> None:
     logging.getLogger("httpx").setLevel(logging.WARNING)
 
     settings = get_settings()
+    # Before any pipeline runs, so their spans have a client to go to. Without
+    # LANGFUSE_* keys this builds a disabled client and tracing costs nothing.
+    init_langfuse(settings)
     if not settings.generation_configured:
         raise SystemExit(f"{settings.generation_key_variable} is not set — this eval calls the model.")
     names = [n.strip() for n in args.pipelines.split(",") if n.strip()]
@@ -572,6 +656,9 @@ def main() -> None:
     everything = [s for rows in samples.values() for s in rows]
     judge_failures = asyncio.run(judge(everything, settings, judge_model, args.concurrency * 2))
 
+    if settings.langfuse_configured:
+        sent = publish_scores(everything)
+        print(f"attached {sent} scores to {len(everything)} Langfuse traces")
     summaries = {name: summarise(rows) for name, rows in samples.items()}
     costs = {
         run.name: _cost(run, sum(1 for s in samples[run.name] if not s.error)) for run in runs

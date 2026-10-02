@@ -1,8 +1,9 @@
 """A stand-in Langfuse server that captures what the SDK actually puts on the wire.
 
 Langfuse exports spans as protobuf OTLP over HTTP to
-`{host}/api/public/otel/v1/traces`. This server speaks just enough of that to
-accept the export and decode it, which lets the test suite assert on real
+`{host}/api/public/otel/v1/traces`, and scores as a JSON batch to
+`{host}/api/public/ingestion`. This server speaks just enough of both to accept
+them and decode them, which lets the test suite assert on real
 serialised spans rather than on mocks. If the instrumentation stops emitting a
 span, or emits it with the wrong parent or attributes, the tests fail here.
 """
@@ -21,6 +22,7 @@ from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
 
 OTEL_TRACES_PATH = "/api/public/otel/v1/traces"
 PROJECTS_PATH = "/api/public/projects"
+INGESTION_PATH = "/api/public/ingestion"
 
 
 @dataclass
@@ -43,11 +45,17 @@ class CapturedSpan:
 @dataclass
 class SpanCollector:
     spans: list[CapturedSpan] = field(default_factory=list)
+    # The body of every `score-create` event, as the SDK sent it.
+    scores: list[dict[str, Any]] = field(default_factory=list)
     _lock: threading.Lock = field(default_factory=threading.Lock)
 
     def add(self, span: CapturedSpan) -> None:
         with self._lock:
             self.spans.append(span)
+
+    def add_score(self, body: dict[str, Any]) -> None:
+        with self._lock:
+            self.scores.append(body)
 
     def by_name(self, name: str) -> CapturedSpan:
         with self._lock:
@@ -109,13 +117,20 @@ def _make_handler(collector: SpanCollector) -> type[BaseHTTPRequestHandler]:
                 self._respond(404, b"{}", "application/json")
 
         def do_POST(self) -> None:
-            if not self.path.startswith(OTEL_TRACES_PATH):
-                self._respond(404, b"", "application/json")
-                return
-
             body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
             if self.headers.get("Content-Encoding") == "gzip":
                 body = gzip.decompress(body)
+
+            if self.path.startswith(INGESTION_PATH):
+                for event in json.loads(body).get("batch", []):
+                    if event.get("type") == "score-create":
+                        collector.add_score(event["body"])
+                self._respond(200, b"{}", "application/json")
+                return
+
+            if not self.path.startswith(OTEL_TRACES_PATH):
+                self._respond(404, b"", "application/json")
+                return
 
             request = ExportTraceServiceRequest()
             request.ParseFromString(body)
