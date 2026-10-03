@@ -1,0 +1,160 @@
+{
+  "config": {
+    "top_k": 5,
+    "candidates": 30,
+    "chunk_size_words": 350,
+    "chunk_overlap_words": 50,
+    "questions": 20,
+    "documents": 13
+  },
+  "overall": {
+    "dense": {
+      "hit@1": 0.6,
+      "hit@3": 0.8,
+      "hit@5": 0.85,
+      "mrr": 0.7017,
+      "ndcg@5": 0.739,
+      "questions": 20,
+      "misses": [
+        "How much warning must we give if we want to walk away from the contract early?",
+        "If everything goes down, how fast will someone get back to us?",
+        "When would the platform normally be taken offline for work?"
+      ]
+    },
+    "dense+rerank": {
+      "hit@1": 0.55,
+      "hit@3": 0.8,
+      "hit@5": 0.85,
+      "mrr": 0.6792,
+      "ndcg@5": 0.7227,
+      "questions": 20,
+      "misses": [
+        "How much warning must we give if we want to walk away from the contract early?",
+        "If everything goes down, how fast will someone get back to us?",
+        "How often does someone check who can get into the systems?"
+      ]
+    },
+    "hybrid": {
+      "hit@1": 0.55,
+      "hit@3": 0.8,
+      "hit@5": 0.8,
+      "mrr": 0.6583,
+      "ndcg@5": 0.6946,
+      "questions": 20,
+      "misses": [
+        "How much warning must we give if we want to walk away from the contract early?",
+        "How long do staff have to file receipts to get their money back?",
+        "If everything goes down, how fast will someone get back to us?",
+        "When would the platform normally be taken offline for work?"
+      ]
+    },
+    "hybrid+rerank": {
+      "hit@1": 0.55,
+      "hit@3": 0.8,
+      "hit@5": 0.85,
+      "mrr": 0.6792,
+      "ndcg@5": 0.7227,
+      "questions": 20,
+      "misses": [
+        "How much warning must we give if we want to walk away from the contract early?",
+        "If everything goes down, how fast will someone get back to us?",
+        "How often does someone check who can get into the systems?"
+      ]
+    }
+  },
+  "by_kind": {
+    "lexical": {
+      "dense": {
+        "hit@1": 0.8,
+        "hit@3": 1.0,
+        "hit@5": 1.0,
+        "mrr": 0.9,
+        "ndcg@5": 0.9262,
+        "questions": 10,
+        "misses": []
+      },
+      "dense+rerank": {
+        "hit@1": 0.7,
+        "hit@3": 1.0,
+        "hit@5": 1.0,
+        "mrr": 0.85,
+        "ndcg@5": 0.8893,
+        "questions": 10,
+        "misses": []
+      },
+      "hybrid": {
+        "hit@1": 0.8,
+        "hit@3": 1.0,
+        "hit@5": 1.0,
+        "mrr": 0.9,
+        "ndcg@5": 0.9262,
+        "questions": 10,
+        "misses": []
+      },
+      "hybrid+rerank": {
+        "hit@1": 0.7,
+        "hit@3": 1.0,
+        "hit@5": 1.0,
+        "mrr": 0.85,
+        "ndcg@5": 0.8893,
+        "questions": 10,
+        "misses": []
+      }
+    },
+    "semantic": {
+      "dense": {
+        "hit@1": 0.4,
+        "hit@3": 0.6,
+        "hit@5": 0.7,
+        "mrr": 0.5033,
+        "ndcg@5": 0.5518,
+        "questions": 10,
+        "misses": [
+          "How much warning must we give if we want to walk away from the contract early?",
+          "If everything goes down, how fast will someone get back to us?",
+          "When would the platform normally be taken offline for work?"
+        ]
+      },
+      "dense+rerank": {
+        "hit@1": 0.4,
+        "hit@3": 0.6,
+        "hit@5": 0.7,
+        "mrr": 0.5083,
+        "ndcg@5": 0.5562,
+        "questions": 10,
+        "misses": [
+          "How much warning must we give if we want to walk away from the contract early?",
+          "If everything goes down, how fast will someone get back to us?",
+          "How often does someone check who can get into the systems?"
+        ]
+      },
+      "hybrid": {
+        "hit@1": 0.3,
+        "hit@3": 0.6,
+        "hit@5": 0.6,
+        "mrr": 0.4167,
+        "ndcg@5": 0.4631,
+        "questions": 10,
+        "misses": [
+          "How much warning must we give if we want to walk away from the contract early?",
+          "How long do staff have to file receipts to get their money back?",
+          "If everything goes down, how fast will someone get back to us?",
+          "When would the platform normally be taken offline for work?"
+        ]
+      },
+      "hybrid+rerank": {
+        "hit@1": 0.4,
+        "hit@3": 0.6,
+        "hit@5": 0.7,
+        "mrr": 0.5083,
+        "ndcg@5": 0.5562,
+        "questions": 10,
+        "misses": [
+          "How much warning must we give if we want to walk away from the contract early?",
+          "If everything goes down, how fast will someone get back to us?",
+          "How often does someone check who can get into the systems?"
+        ]
+      }
+    }
+  }
+}
