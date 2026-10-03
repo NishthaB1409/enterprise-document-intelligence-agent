@@ -37,6 +37,7 @@ from pathlib import Path
 
 from qdrant_client import QdrantClient
 
+from app.config import get_settings
 from app.ingest.chunking import build_splitter, chunk_pages
 from app.ingest.embedding import FastEmbedEmbedder
 from app.ingest.sparse import FastEmbedSparseEmbedder
@@ -162,9 +163,15 @@ def main() -> None:
     # not what is being measured, and 200 identical warnings bury the table.
     logging.getLogger("langfuse").setLevel(logging.ERROR)
 
-    embedder = FastEmbedEmbedder(model_name="BAAI/bge-small-en-v1.5")
-    sparse_embedder = FastEmbedSparseEmbedder()
-    reranker = CrossEncoderReranker()
+    # The service's own models and cache directory, so the eval measures what
+    # ships and shares the weights the app has already downloaded.
+    settings = get_settings()
+    cache_dir = settings.embedding_cache_dir
+    embedder = FastEmbedEmbedder(model_name=settings.embedding_model, cache_dir=cache_dir)
+    sparse_embedder = FastEmbedSparseEmbedder(
+        model_name=settings.sparse_model, cache_dir=cache_dir
+    )
+    reranker = CrossEncoderReranker(model_name=settings.reranker_model, cache_dir=cache_dir)
 
     print(
         f"corpus: {len(CORPUS)} documents  "

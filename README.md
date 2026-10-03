@@ -20,7 +20,7 @@ Enterprise document automation (contract review, compliance, knowledge retrieval
                  └──────┬──────┘
                         ▼
                  ┌─────────────┐
-                 │  RETRIEVE   │  hybrid: dense (embeddings) + sparse (BM25) → rerank
+                 │  RETRIEVE   │  dense by default; hybrid (+BM25) and rerank are opt-in
                  └──────┬──────┘
                         ▼
                  ┌─────────────┐     not relevant
@@ -47,7 +47,7 @@ Enterprise document automation (contract review, compliance, knowledge retrieval
                      answer
 ```
 
-The graph is orchestrated with **LangGraph**, which models the flow as a stateful directed graph with explicit state, checkpointing, and `interrupt_before` human-in-the-loop pauses.
+This is the agentic graph (`AGENT_ENABLED=true`). The default pipeline is the single pass: retrieve, generate, then the same review gate. The graph is orchestrated with **LangGraph**, which models the flow as a stateful directed graph: the retry edge from grading back to retrieval is declared once, the rewrite budget lives in the state, and the path taken comes back in `steps`. The review gate runs after either pipeline, not as a graph pause (see [Human review](#human-review)).
 
 ---
 
@@ -433,15 +433,6 @@ misses three of them. `--gate` therefore enforces **regression floors** set just
 below today's scores. A gate that fails every build gets switched off, so the
 targets stay as goals.
 
----|---|
-| Faithfulness | ≥ 0.90 |
-| Answer relevancy | ≥ 0.85 |
-| Context precision | ≥ 0.80 |
-| Context recall | ≥ 0.80 |
-
-The intent is that CI blocks a pull request that drops a metric below threshold, and
-that every score is attached to its Langfuse trace for drill-down.
-
 ---
 
 ## Known limitations
@@ -476,12 +467,12 @@ enterprise-doc-agent/
 │   ├── main.py            # FastAPI entrypoint + app factory
 │   ├── config.py          # settings, loaded from the environment
 │   ├── services.py        # composition root: picks the concrete implementations
-│   ├── api/routes/        # /health, /ingest, /query
+│   ├── api/routes/        # /health, /ingest, /query, /reviews
 │   ├── ingest/            # PDF parsing, chunking, embedding, the pipeline
 │   ├── vectorstore/       # VectorStore protocol + the Qdrant implementation
-│   ├── retrieval/         # dense retriever (hybrid + reranker land in phase 2)
+│   ├── retrieval/         # dense, hybrid (RRF) and reranking retrievers
 │   ├── generation/        # cited-answer generation and citation grounding
-│   ├── graph/             # LangGraph nodes and state definition (phase 3)
+│   ├── graph/             # simple pipeline + LangGraph agent: nodes, state, edges
 │   ├── review/            # review gate rules, contradiction resolution, the queue
 │   └── observability/     # Langfuse client, tracing middleware
 ├── tests/                 # in-process stand-ins for the embedder, store, and model

@@ -17,12 +17,14 @@ permissions:
 
 jobs:
   pytest:
-    runs-on: ubuntu-latest
+    # Pinned so the image changes when we choose, not when ubuntu-latest moves.
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: astral-sh/setup-uv@v6
+      # setup-uv publishes only exact tags (no @v10), so this pins a release.
+      - uses: astral-sh/setup-uv@v10.2.0
         with:
           python-version: "3.12"
           enable-cache: true

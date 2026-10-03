@@ -35,7 +35,8 @@ concurrency:
 
 jobs:
   gate:
-    runs-on: ubuntu-latest
+    # Pinned so the image changes when we choose, not when ubuntu-latest moves.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -47,9 +48,10 @@ jobs:
           echo "::error::OPENAI_API_KEY is not set as a repository secret; the gate calls the model and cannot run without it."
           exit 1
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: astral-sh/setup-uv@v6
+      # setup-uv publishes only exact tags (no @v10), so this pins a release.
+      - uses: astral-sh/setup-uv@v10.2.0
         with:
           python-version: "3.12"
           enable-cache: true
@@ -58,7 +60,7 @@ jobs:
 
       # The embedding model is ~130MB. Cached between runs so the nightly job
       # does not download it every night.
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: .cache/fastembed
           key: fastembed-${{ hashFiles('app/config.py') }}
@@ -73,7 +75,7 @@ jobs:
       # The per-question rows, for reading why a gate failed. Kept as an
       # artifact rather than committed: the committed record is the run
       # eval/ANSWERS.md describes, and CI must not rewrite it.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: answer-results
