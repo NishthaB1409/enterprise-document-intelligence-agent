@@ -388,8 +388,11 @@ python -m eval.review_eval --trials 6
 First run: **30/36 conflicts detected, 0/36 false alarms**, and the grader kept
 both sides of every conflict (36/36). The critic's confidence separates the two
 halves cleanly. Conflict cases never scored above 0.40, and clean cases never
-below 0.80, so `REVIEW_MIN_CONFIDENCE=0.7` sits in the gap. The one missed case
-is still held, by its low confidence. The details are in
+below 0.80, so `REVIEW_MIN_CONFIDENCE=0.7` sits in the gap. The single-pass
+answerer reports conflicts too, at no extra call, and matches the critic: 30/36,
+0 false alarms. Both miss the same case, an arguable liability-cap clause. With
+the agent on it is still held by the critic's low confidence. On the default
+single pass it is released, which is an accepted limit. The details are in
 **[`eval/REVIEW.md`](eval/REVIEW.md)**.
 
 ### Answer quality — shipped
@@ -438,6 +441,30 @@ targets stay as goals.
 
 The intent is that CI blocks a pull request that drops a metric below threshold, and
 that every score is attached to its Langfuse trace for drill-down.
+
+---
+
+## Known limitations
+
+Each of these was measured and is kept on purpose. None is an oversight.
+
+- **Paraphrased questions can miss retrieval.** When a question shares almost no
+  words with the passage that answers it, the right chunk can fall outside the top
+  five (hit@5 is 0.70 on paraphrased questions, 1.00 on exact-token ones). Query
+  rewriting would cost an extra call per question and hasn't been measured. See
+  [`eval/README.md`](eval/README.md#known-limit-paraphrased-questions).
+- **One contradiction shape is released on the single pass.** A clause that opens
+  "Notwithstanding anything else…" and restates the liability cap isn't flagged.
+  The agent pipeline holds it, at about four times the calls. See
+  [`eval/REVIEW.md`](eval/REVIEW.md#accepted-limits).
+- **Cross-vendor questions can be held.** A question that doesn't name the vendor,
+  over contracts with different terms, goes to a reviewer. That's deliberate.
+- **Faithfulness sits close to its CI floor.** Run-to-run judge noise is about
+  0.05, and a bad run clears the 0.75 floor by about 0.03. Re-run a single
+  nightly failure before treating it as a regression. See
+  [`eval/ANSWERS.md`](eval/ANSWERS.md#the-ci-gate).
+- **No authentication.** Out of scope for this project. Put the routes behind
+  your identity provider before exposing them (see [Human review](#human-review)).
 
 ---
 

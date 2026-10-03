@@ -191,6 +191,13 @@ misses three of those four (faithfulness, relevancy, precision), and a gate that
 fails every build gets switched off rather than fixed. Raise a floor when a
 change measurably lifts the baseline.
 
+**Faithfulness has the least headroom.** Across runs of identical code it has
+ranged 0.78–0.87, and the first CI run (2026-10-03) scored 0.782, 0.005 under
+the lowest local run. So the 0.75 floor clears a bad run by about 0.03, less
+than one question's worth. A single nightly failure near the floor should be
+re-run before it's treated as a regression. Two failures in a row, or a drop
+well below 0.75, is a regression.
+
 [`.github/workflows/answer-quality.yml`](../.github/workflows/answer-quality.yml)
 runs it nightly and on demand from the Actions tab, not on every push. It costs
 roughly $0.05 per single-pass run. It needs `OPENAI_API_KEY` as a repository

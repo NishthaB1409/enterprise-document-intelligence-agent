@@ -109,6 +109,22 @@ Measured on the same twelve cases, at temperature 0, 6 trials each:
   means nothing to a reviewer. The text is rewritten with the document and page
   each number stood for ("contract.pdf p1 says…") before it reaches a reason.
 
+## Accepted limits
+
+Two behaviours above were reviewed on 2026-10-03 and are kept as they are:
+
+- **The liability-cap conflict is released on the single pass.** Neither model
+  flags it, and with the agent off there is no critic confidence to hold it.
+  It's accepted, not fixed. The case is the arguable one, a prompt tuned until
+  it passes would be teaching to this test, and it is the only miss across the
+  twelve cases. Turning the agent on (`AGENT_ENABLED=true`) holds it, at about
+  four times the calls.
+- **The cross-vendor payment-terms hold stays.** Two vendors with different
+  payment terms isn't a contradiction within one agreement. But when a question
+  doesn't name the vendor, the answer has to pick one or report both, and a
+  person checking which one was meant is the right outcome. It costs a review,
+  not a wrong answer.
+
 ## First finding: grading hid the conflict
 
 The first live test used a two-page PDF. Page 1 said invoices were payable in

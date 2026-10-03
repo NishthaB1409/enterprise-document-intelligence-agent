@@ -149,6 +149,33 @@ time.
   Real documents are messier, and real questions are worse-formed.
 - **Retrieval only.** Whether these rankings produce better *answers* is phase 5.
 
+## Known limit: paraphrased questions
+
+Paraphrased questions are where retrieval is weakest (hit@5 0.70, against 1.00
+for exact-token ones). Two of them miss in **all four** configurations:
+
+- *"How much warning must we give if we want to walk away from the contract
+  early?"*: the gold passage is termination for convenience on ninety days'
+  notice.
+- *"If everything goes down, how fast will someone get back to us?"*: the gold
+  passage is the four-hour recovery time objective.
+
+The question and the passage share almost no words, and no configuration here
+bridges that gap. These misses carry straight through to answer quality: the
+answer eval marks them "gold passage never shown". In the first CI run
+(2026-10-03), they and a third paraphrase that dense search also misses (*"When
+would the platform normally be taken offline for work?"*) were three of the five
+answers that scored zero for correctness ([`ANSWERS.md`](ANSWERS.md)).
+
+This is accepted as a known limit (decided 2026-10-03), not fixed. The usual
+fix is to have the model rewrite the question into the documents' vocabulary
+before searching (query rewriting, or HyDE). That adds a model call to every
+question, doubling the single pass's calls, and it hasn't been measured here. The
+agent's REWRITE step doesn't cover this: it only fires when grading finds
+nothing relevant, and the agent's context recall was the same as the single
+pass's (0.850). Measure a rewrite-before-retrieve step with this runner before
+adopting it.
+
 ## What would change the recommendation
 
 Re-run `python -m eval.retrieval_eval` against your own documents. Turn hybrid on
